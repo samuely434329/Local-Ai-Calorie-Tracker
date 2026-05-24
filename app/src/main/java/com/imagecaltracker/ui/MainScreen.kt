@@ -54,8 +54,10 @@ import java.time.format.FormatStyle
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val history by viewModel.historyFlow.collectAsStateWithLifecycle()
 
     var showGoalsDialog by rememberSaveable { mutableStateOf(false) }
+    var showHistoryDialog by rememberSaveable { mutableStateOf(false) }
     var entryBeingEdited by remember { mutableStateOf<FoodEntry?>(null) }
 
     PaperBackground(modifier = Modifier.fillMaxSize()) {
@@ -68,6 +70,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             TopBar(
                 date = uiState.date,
                 onEditGoals = { showGoalsDialog = true },
+                onShowHistory = { showHistoryDialog = true },
             )
 
             Spacer(Modifier.height(8.dp))
@@ -131,6 +134,17 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         )
     }
 
+    if (showHistoryDialog) {
+        HistoryDialog(
+            history = history,
+            onDismiss = { showHistoryDialog = false },
+            onSelectDate = { date ->
+                viewModel.setDate(date)
+                showHistoryDialog = false
+            },
+        )
+    }
+
     entryBeingEdited?.let { entry ->
         EditEntryDialog(
             entry = entry,
@@ -151,6 +165,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 private fun TopBar(
     date: LocalDate,
     onEditGoals: () -> Unit,
+    onShowHistory: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -182,6 +197,13 @@ private fun TopBar(
                 )
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("History") },
+                    onClick = {
+                        menuOpen = false
+                        onShowHistory()
+                    },
+                )
                 DropdownMenuItem(
                     text = { Text("Edit goals") },
                     onClick = {

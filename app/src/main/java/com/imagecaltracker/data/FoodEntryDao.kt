@@ -23,6 +23,10 @@ interface FoodEntryDao {
     )
     fun observeRange(startMillis: Long, endMillis: Long): Flow<List<FoodEntry>>
 
+    /** Streams every entry in the table, newest first. Used to build the history view. */
+    @Query("SELECT * FROM food_entries ORDER BY timestampMillis DESC")
+    fun observeAll(): Flow<List<FoodEntry>>
+
     @Insert
     suspend fun insert(entry: FoodEntry): Long
 

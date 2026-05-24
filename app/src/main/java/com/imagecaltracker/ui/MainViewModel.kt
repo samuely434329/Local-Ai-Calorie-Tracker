@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.imagecaltracker.data.CalorieDatabase
 import com.imagecaltracker.data.DailyGoals
+import com.imagecaltracker.data.DaySummary
 import com.imagecaltracker.data.FoodEntry
 import com.imagecaltracker.data.FoodRepository
 import com.imagecaltracker.data.GoalsRepository
@@ -39,7 +40,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val foodRepo = FoodRepository(CalorieDatabase.get(application).foodEntryDao())
     private val goalsRepo = GoalsRepository(application)
 
-    /** Currently displayed day. Always today; exposed for potential future history view. */
+    /** Currently displayed day. Defaults to today; the user can switch to a past day from the history dialog. */
     private val dateFlow = MutableStateFlow(LocalDate.now())
 
     private val entriesFlow = dateFlow.flatMapLatest { foodRepo.observeEntriesForDate(it) }
@@ -55,6 +56,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.WhileSubscribed(5_000L),
         initialValue = MainUiState(LocalDate.now(), DailyGoals.Default, emptyList()),
     )
+
+    /** Per-day summaries of past logged days (excluding today), newest first. */
+    val historyFlow: StateFlow<List<DaySummary>> = foodRepo.observeHistory(LocalDate.now())
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000L),
+            initialValue = emptyList(),
+        )
 
     fun addEntry(name: String, calories: Int, proteinG: Int, carbsG: Int, fatsG: Int) {
         if (name.isBlank() || calories <= 0) return
@@ -79,5 +88,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setGoals(goals: DailyGoals) {
         viewModelScope.launch { goalsRepo.setGoals(goals) }
+    }
+
+    /** Switch the displayed day. Used by the history dialog. */
+    fun setDate(date: LocalDate) {
+        dateFlow.value = date
     }
 }

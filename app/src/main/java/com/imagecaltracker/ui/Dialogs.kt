@@ -1,14 +1,19 @@
 package com.imagecaltracker.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,11 +27,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.imagecaltracker.data.DailyGoals
+import com.imagecaltracker.data.DaySummary
 import com.imagecaltracker.data.FoodEntry
 import com.imagecaltracker.ui.sketch.SketchyButton
 import com.imagecaltracker.ui.sketch.SketchyTextField
 import com.imagecaltracker.ui.sketch.sketchyBorder
 import com.imagecaltracker.ui.theme.SketchColors
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Edit-goals dialog. Lets the user set the daily calorie target and the
@@ -232,6 +240,99 @@ private fun LabeledNumberField(
             onValueChange = onValueChange,
             keyboardType = KeyboardType.Number,
             modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * History dialog. Lists past days that have logged entries, newest first,
+ * showing the date plus a count of entries and the total kcal for that day.
+ * Tapping a row calls [onSelectDate] with the picked date so the caller can
+ * load that day's log.
+ */
+@Composable
+fun HistoryDialog(
+    history: List<DaySummary>,
+    onDismiss: () -> Unit,
+    onSelectDate: (java.time.LocalDate) -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        DialogSurface {
+            DialogTitle("History")
+
+            if (history.isEmpty()) {
+                Text(
+                    text = "No history yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = SketchColors.InkLight,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            } else {
+                // Cap the list height so the dialog stays a reasonable size on long histories.
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp),
+                ) {
+                    items(history, key = { it.date.toEpochDay() }) { day ->
+                        HistoryRow(day = day, onClick = { onSelectDate(day.date) })
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) {
+                SketchyButton(text = "Close", onClick = onDismiss, seed = 711)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryRow(day: DaySummary, onClick: () -> Unit) {
+    val dateLabel = remember(day.date) {
+        day.date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+    }
+    val weekday = remember(day.date) {
+        day.date.format(DateTimeFormatter.ofPattern("EEE"))
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 44.dp)
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "$weekday, $dateLabel",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = SketchColors.InkDark,
+                )
+                Text(
+                    text = "${day.entryCount} ${if (day.entryCount == 1) "entry" else "entries"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SketchColors.InkMid,
+                )
+            }
+            Text(
+                text = "${day.totalCalories} kcal",
+                style = MaterialTheme.typography.bodyLarge,
+                color = SketchColors.InkDark,
+            )
+        }
+        HorizontalDivider(
+            color = SketchColors.GridLine,
+            thickness = 0.6.dp,
         )
     }
 }
