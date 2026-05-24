@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.imagecaltracker.data.FoodEntry
+import com.imagecaltracker.assistant.AssistantDialog
 import com.imagecaltracker.ui.sketch.PaperBackground
 import com.imagecaltracker.ui.sketch.SketchyButton
 import com.imagecaltracker.ui.sketch.SketchyCalorieRing
@@ -58,6 +60,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 
     var showGoalsDialog by rememberSaveable { mutableStateOf(false) }
     var showHistoryDialog by rememberSaveable { mutableStateOf(false) }
+    var showAssistantDialog by rememberSaveable { mutableStateOf(false) }
     var entryBeingEdited by remember { mutableStateOf<FoodEntry?>(null) }
 
     PaperBackground(modifier = Modifier.fillMaxSize()) {
@@ -71,6 +74,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 date = uiState.date,
                 onEditGoals = { showGoalsDialog = true },
                 onShowHistory = { showHistoryDialog = true },
+                onOpenAssistant = { showAssistantDialog = true },
             )
 
             Spacer(Modifier.height(8.dp))
@@ -145,6 +149,21 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         )
     }
 
+    if (showAssistantDialog) {
+        AssistantDialog(
+            onDismiss = { showAssistantDialog = false },
+            onAddToLog = { estimate ->
+                viewModel.addEntry(
+                    name = estimate.name,
+                    calories = estimate.calories,
+                    proteinG = estimate.proteinG,
+                    carbsG = estimate.carbsG,
+                    fatsG = estimate.fatsG,
+                )
+            },
+        )
+    }
+
     entryBeingEdited?.let { entry ->
         EditEntryDialog(
             entry = entry,
@@ -166,6 +185,7 @@ private fun TopBar(
     date: LocalDate,
     onEditGoals: () -> Unit,
     onShowHistory: () -> Unit,
+    onOpenAssistant: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -188,29 +208,42 @@ private fun TopBar(
             )
         }
 
-        Box {
-            IconButton(onClick = { menuOpen = true }) {
+        // Right cluster: assistant button + overflow menu.
+        // Assistant lives immediately to the LEFT of the 3-dot menu so the
+        // existing menu ordering (history / goals) stays untouched.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onOpenAssistant) {
                 Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = "Menu",
+                    Icons.Default.AutoAwesome,
+                    contentDescription = "Open assistant",
                     tint = SketchColors.InkDark,
                 )
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("History") },
-                    onClick = {
-                        menuOpen = false
-                        onShowHistory()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("Edit goals") },
-                    onClick = {
-                        menuOpen = false
-                        onEditGoals()
-                    },
-                )
+
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "Menu",
+                        tint = SketchColors.InkDark,
+                    )
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("History") },
+                        onClick = {
+                            menuOpen = false
+                            onShowHistory()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Edit goals") },
+                        onClick = {
+                            menuOpen = false
+                            onEditGoals()
+                        },
+                    )
+                }
             }
         }
     }
