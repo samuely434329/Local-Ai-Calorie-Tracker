@@ -49,6 +49,7 @@ class AssistantEngine(private val appContext: Context) {
      * Lazily load the model. Returns the LlmInference instance, or null if
      * the model is missing or load failed (in which case we use the fallback).
      */
+    @Synchronized
     private fun ensureLoaded(): LlmInference? {
         if (llm != null) return llm
         if (loadAttempted) return null
@@ -63,7 +64,7 @@ class AssistantEngine(private val appContext: Context) {
         return try {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(file.absolutePath)
-                .setMaxTopK(64)
+                .setTopK(64)
                 .build()
             LlmInference.createFromOptions(appContext, options).also { llm = it }
         } catch (t: Throwable) {

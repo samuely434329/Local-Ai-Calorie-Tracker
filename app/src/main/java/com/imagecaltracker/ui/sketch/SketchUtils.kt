@@ -206,12 +206,13 @@ fun Modifier.graphPaperBackground(
         y += cell
     }
 }
-
+// TODO blobs looks bad
 /**
  * Modifier that paints procedural pencil "smudges" UNDER content as part of
  * the paper texture (drawBehind). Soft irregular dark blobs made of
  * overlapping translucent ellipses give the paper a worn, used feel.
  */
+/*
 fun Modifier.smudgeBackground(
     color: Color = SketchColors.InkSmudge,
     count: Int = 14,
@@ -237,7 +238,8 @@ fun Modifier.smudgeBackground(
         }
     }
 }
-
+*/
+// TODO circles
 /**
  * Modifier that overlays fine pencil grain on top of content — tiny dark
  * dots at very low alpha. Subtle enough to not interfere with readability,
@@ -303,7 +305,7 @@ fun PaperBackground(
     Box(
         modifier = modifier
             .graphPaperBackground(seed = seed)
-            .smudgeBackground(seed = seed + 1)
+            // .smudgeBackground(seed = seed + 1)
             .grainOverlay(seed = seed + 2),
         content = content,
     )
