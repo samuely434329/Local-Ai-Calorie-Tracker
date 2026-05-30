@@ -148,19 +148,7 @@ class AssistantEngine(private val appContext: Context) {
 
     private fun fallbackChat(userMessage: String): String {
         val q = userMessage.lowercase().trim()
-        return when {
-            q.contains("protein") -> "For most active adults, ~0.8–1.0 g of protein per pound of bodyweight is a reasonable target. Spread it across 3–4 meals — eggs, chicken, Greek yogurt, tofu, and beans are all efficient sources."
-            q.contains("carb") -> "Carbs aren't the enemy — they fuel workouts and recovery. Lean on whole grains, fruit, beans and starchy veg, and keep added sugar low. Match intake to your activity level."
-            q.contains("fat") -> "Healthy fats from olive oil, avocado, nuts and fatty fish support hormones and satiety. Aim for ~20–35% of your daily calories from fat, mostly unsaturated."
-            q.contains("breakfast") -> "A balanced breakfast usually pairs a protein (eggs, yogurt, cottage cheese) with a slow carb (oats, whole-grain toast) and a piece of fruit. ~400–500 kcal works for most."
-            q.contains("snack") -> "Smart snacks combine protein + fibre to keep you full: apple + peanut butter, Greek yogurt + berries, hummus + carrots, or a handful of mixed nuts."
-            q.contains("water") || q.contains("hydration") -> "A common rule of thumb is ~30–35 ml of water per kg of bodyweight per day, more if you're sweating. Pale yellow urine is a decent visual check."
-            q.contains("lose") || q.contains("weight loss") || q.contains("cut") -> "A modest 300–500 kcal/day deficit usually drives sustainable loss without wrecking energy. Keep protein high to preserve muscle and add some resistance training."
-            q.contains("gain") || q.contains("bulk") || q.contains("muscle") -> "To build muscle, aim for a 200–400 kcal/day surplus, ~1.6–2.2 g/kg protein, and progressive resistance training. Sleep is half the equation."
-            q.contains("sugar") -> "Most guidelines suggest keeping added sugar under ~25 g/day. Whole-fruit sugar is a different story — fibre and water blunt the spike."
-            q.contains("hello") || q.contains("hi ") || q == "hi" || q == "hey" -> "Hey! I can help with quick diet questions or estimate macros from a meal photo + description. What's up?"
-            else -> "I'm a small offline diet assistant — I can suggest meal ideas, talk macros, or estimate calories. (Drop a Gemma .task model in the app's files dir for smarter answers.)"
-        }
+        return "I'm a small offline diet assistant — I can suggest meal ideas, talk macros, or estimate calories. (Drop a Gemma .task model in the app's files dir for smarter answers.)"
     }
 
     // ----- Heuristic fallback for macro estimation -----
