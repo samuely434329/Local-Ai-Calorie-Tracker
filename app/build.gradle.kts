@@ -1,7 +1,10 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -27,26 +30,24 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     buildFeatures {
         compose = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
-    }
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_21)
     }
 }
 
@@ -71,15 +72,15 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     // Room
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.8.4")
+    implementation("androidx.room:room-ktx:2.8.4")
+    ksp("androidx.room:room-compiler:2.8.4")
 
     // DataStore Preferences (for daily goals)
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
-    // MediaPipe GenAI — Reverting to 0.10.35 because LiteRT-LM requires Java 21.
-    implementation("com.google.mediapipe:tasks-genai:0.10.35")
+    // LiteRT-LM (replaces MediaPipe GenAI)
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.12.0")
 
     // Coil — lightweight async image loader used by the assistant dialog
     // to render the meal photo captured via the system camera intent.

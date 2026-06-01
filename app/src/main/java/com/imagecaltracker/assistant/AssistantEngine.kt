@@ -2,23 +2,29 @@ package com.imagecaltracker.assistant
 
 import android.content.Context
 import android.util.Log
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
+import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.EngineConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
  * On-device LLM wrapper for the in-app assistant.
  *
- * Using MediaPipe LlmInference (v0.10.35).
+ * Using LiteRT-LM (replaces deprecated MediaPipe LlmInference).
  */
 class AssistantEngine(private val appContext: Context) {
 
-    private var llm: LlmInference? = null
+    private var engine: Engine? = null
     private var loadAttempted: Boolean = false
+    private val initLock = Mutex()
 
     val usingFallback: Boolean
-        get() = loadAttempted && llm == null
+        get() = loadAttempted && engine == null
 
     val expectedModelPath: String
         get() = modelFile().absolutePath
@@ -28,9 +34,8 @@ class AssistantEngine(private val appContext: Context) {
         return File(dir, "model.litertlm")
     }
 
-    @Synchronized
-    private fun ensureLoaded(): LlmInference? {
-        if (llm != null) return llm
+    private suspend fun ensureLoaded(): Engine? = initLock.withLock {
+        if (engine != null) return engine
 
         val file = modelFile()
         if (!file.exists() || file.length() == 0L) {
@@ -40,26 +45,27 @@ class AssistantEngine(private val appContext: Context) {
         }
 
         return try {
-            val options = LlmInference.LlmInferenceOptions.builder()
-                .setModelPath(file.absolutePath)
-                .setMaxTokens(1024)
-                .build()
-            LlmInference.createFromOptions(appContext, options).also { 
-                llm = it 
-                loadAttempted = true
-            }
+            val config = EngineConfig(
+                modelPath = file.absolutePath,
+                backend = Backend.CPU() // Can be Backend.GPU() if supported
+            )
+            val newEngine = Engine(config)
+            newEngine.initialize()
+            engine = newEngine
+            loadAttempted = true
+            newEngine
         } catch (t: Throwable) {
             loadAttempted = true
-            Log.w(TAG, "Failed to initialise LlmInference, using fallback: ${t.message}", t)
+            Log.w(TAG, "Failed to initialise LiteRT-LM, using fallback: ${t.message}", t)
             null
         }
     }
 
     fun close() {
         try {
-            llm?.close()
+            engine?.close()
         } catch (_: Throwable) {}
-        llm = null
+        engine = null
     }
 
     // -----------------------------------------------------------------------
@@ -96,12 +102,18 @@ class AssistantEngine(private val appContext: Context) {
     // Internals
     // -----------------------------------------------------------------------
 
-    private fun runLlm(prompt: String): String? {
-        val engine = ensureLoaded() ?: return null
+    private suspend fun runLlm(prompt: String): String? {
+        val currentEngine = ensureLoaded() ?: return null
         return try {
-            engine.generateResponse(prompt)?.trim()?.takeIf { it.isNotEmpty() }
+            currentEngine.createConversation().use { conversation ->
+                val response = conversation.sendMessage(prompt)
+                val text = response.contents.contents
+                    .filterIsInstance<Content.Text>()
+                    .joinToString("") { it.text }
+                text.trim().takeIf { it.isNotEmpty() }
+            }
         } catch (t: Throwable) {
-            Log.w(TAG, "generateResponse failed: ${t.message}", t)
+            Log.w(TAG, "sendMessage failed: ${t.message}", t)
             null
         }
     }
