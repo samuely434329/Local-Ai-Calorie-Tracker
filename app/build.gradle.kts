@@ -40,7 +40,6 @@ android {
     }
 
     composeOptions {
-        // Compose compiler version compatible with Kotlin 1.9.24.
         kotlinCompilerExtensionVersion = "1.5.14"
     }
 
@@ -79,11 +78,8 @@ dependencies {
     // DataStore Preferences (for daily goals)
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
-    // MediaPipe GenAI — on-device Gemma inference for the local assistant.
-    // The .task model file is NOT bundled; AssistantEngine looks for it in
-    // the app's external files dir at runtime and falls back to a heuristic
-    // responder if it is missing.
-    implementation("com.google.mediapipe:tasks-genai:0.10.14")
+    // MediaPipe GenAI — Reverting to 0.10.35 because LiteRT-LM requires Java 21.
+    implementation("com.google.mediapipe:tasks-genai:0.10.35")
 
     // Coil — lightweight async image loader used by the assistant dialog
     // to render the meal photo captured via the system camera intent.
