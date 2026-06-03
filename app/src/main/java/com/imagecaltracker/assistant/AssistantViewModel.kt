@@ -43,6 +43,7 @@ data class AssistantUiState(
     val estimating: Boolean = false,
     val estimate: MacroEstimate? = null,
     val usingFallback: Boolean = false,
+    val statusMessage: String = "Checking...",
 )
 
 /**
@@ -60,6 +61,17 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _state = MutableStateFlow(AssistantUiState())
     val state: StateFlow<AssistantUiState> = _state.asStateFlow()
+
+    init {
+        // Start engine initialization immediately when the dialog opens.
+        viewModelScope.launch {
+            engine.initialize()
+            _state.value = _state.value.copy(
+                usingFallback = engine.usingFallback,
+                statusMessage = engine.statusMessage
+            )
+        }
+    }
 
     /** Monotonic id generator for chat messages — purely for LazyColumn keys. */
     private var nextMessageId: Long = 1L
@@ -110,6 +122,7 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
                 messages = _state.value.messages + assistantMsg,
                 sending = false,
                 usingFallback = engine.usingFallback,
+                statusMessage = engine.statusMessage,
             )
         }
     }
@@ -168,6 +181,7 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
                 estimating = false,
                 estimate = result,
                 usingFallback = engine.usingFallback,
+                statusMessage = engine.statusMessage,
             )
         }
     }

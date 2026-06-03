@@ -206,30 +206,30 @@ fun Modifier.graphPaperBackground(
         y += cell
     }
 }
-// TODO blobs looks bad
 /**
  * Modifier that paints procedural pencil "smudges" UNDER content as part of
  * the paper texture (drawBehind). Soft irregular dark blobs made of
  * overlapping translucent ellipses give the paper a worn, used feel.
+ *
+ * Optimized version with fewer layers to prevent emulator lag.
  */
-/*
 fun Modifier.smudgeBackground(
     color: Color = SketchColors.InkSmudge,
-    count: Int = 14,
+    count: Int = 8,
     seed: Int = 13,
 ): Modifier = drawBehind {
     val rand = sketchRandom(seed)
     repeat(count) {
         val cx = rand.nextFloat() * size.width
         val cy = rand.nextFloat() * size.height
-        val rx = 14f + rand.nextFloat() * 36f
-        val ry = 8f + rand.nextFloat() * 22f
-        // 3–6 overlapping ellipses simulate a smudge.
-        val layers = 3 + rand.nextInt(4)
-        repeat(layers) { l ->
-            val a = (rand.nextFloat() * 0.07f + 0.05f) * (1f - l / layers.toFloat() * 0.5f)
-            val ox = (rand.nextFloat() - 0.5f) * 10f
-            val oy = (rand.nextFloat() - 0.5f) * 10f
+        val rx = 20f + rand.nextFloat() * 40f
+        val ry = 10f + rand.nextFloat() * 25f
+        
+        // Just 2 overlapping ellipses for a soft effect without killing performance.
+        repeat(2) { l ->
+            val a = (rand.nextFloat() * 0.05f + 0.03f) * (1f - l * 0.5f)
+            val ox = (rand.nextFloat() - 0.5f) * 12f
+            val oy = (rand.nextFloat() - 0.5f) * 12f
             drawOval(
                 color = color.copy(alpha = a),
                 topLeft = Offset(cx - rx + ox, cy - ry + oy),
@@ -238,8 +238,7 @@ fun Modifier.smudgeBackground(
         }
     }
 }
-*/
-// TODO circles
+
 /**
  * Modifier that overlays fine pencil grain on top of content — tiny dark
  * dots at very low alpha. Subtle enough to not interfere with readability,
@@ -305,7 +304,7 @@ fun PaperBackground(
     Box(
         modifier = modifier
             .graphPaperBackground(seed = seed)
-            // .smudgeBackground(seed = seed + 1)
+            .smudgeBackground(seed = seed + 1)
             .grainOverlay(seed = seed + 2),
         content = content,
     )

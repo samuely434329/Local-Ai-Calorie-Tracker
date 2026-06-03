@@ -13,41 +13,59 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * On-device LLM wrapper for the in-app assistant.
- *
- * Using LiteRT-LM (replaces deprecated MediaPipe LlmInference).
+ * On-device LLM wrapper for the in-app assistant using modern LiteRT-LM.
  */
 class AssistantEngine(private val appContext: Context) {
 
     private var engine: Engine? = null
     private var loadAttempted: Boolean = false
+    private var lastError: String? = null
     private val initLock = Mutex()
 
     val usingFallback: Boolean
         get() = loadAttempted && engine == null
 
-    val expectedModelPath: String
-        get() = modelFile().absolutePath
+    val statusMessage: String
+        get() = when {
+            engine != null -> "Local Model Active"
+            lastError != null -> lastError!!
+            !loadAttempted -> "Checking for model..."
+            else -> "Heuristic Mode (No model found)"
+        }
 
-    private fun modelFile(): File {
-        val dir = File(appContext.getExternalFilesDir(null), "llm").apply { mkdirs() }
-        return File(dir, "model.litertlm")
+    /** Pre-initialize the engine so it's ready before the user types. */
+    suspend fun initialize() {
+        ensureLoaded()
     }
 
     private suspend fun ensureLoaded(): Engine? = initLock.withLock {
         if (engine != null) return engine
 
-        val file = modelFile()
+        val dir = File(appContext.getExternalFilesDir(null), "llm").apply { mkdirs() }
+        
+        var file = File(dir, "model.litertlm")
+        if (!file.exists() || file.length() == 0L) {
+            val autoFile = dir.listFiles()?.find { 
+                it.name.endsWith(".litertlm", ignoreCase = true) || 
+                it.name.endsWith(".task", ignoreCase = true) 
+            }
+            if (autoFile != null) {
+                file = autoFile
+            }
+        }
+
         if (!file.exists() || file.length() == 0L) {
             loadAttempted = true
-            Log.i(TAG, "No LLM model at ${file.absolutePath}")
+            lastError = "Model not found in ${dir.absolutePath}"
+            Log.w(TAG, lastError!!)
             return null
         }
 
+        Log.d(TAG, "Initializing LiteRT-LM with: ${file.name} (${file.length() / 1024 / 1024} MB)...")
         return try {
             val config = EngineConfig(
                 modelPath = file.absolutePath,
-                backend = Backend.CPU() // Can be Backend.GPU() if supported
+                backend = Backend.CPU()
             )
             val newEngine = Engine(config)
             newEngine.initialize()
@@ -56,7 +74,8 @@ class AssistantEngine(private val appContext: Context) {
             newEngine
         } catch (t: Throwable) {
             loadAttempted = true
-            Log.w(TAG, "Failed to initialise LiteRT-LM, using fallback: ${t.message}", t)
+            lastError = "Init failed: ${t.message}"
+            Log.e(TAG, lastError!!, t)
             null
         }
     }
@@ -68,14 +87,10 @@ class AssistantEngine(private val appContext: Context) {
         engine = null
     }
 
-    // -----------------------------------------------------------------------
-    // Public API
-    // -----------------------------------------------------------------------
-
     suspend fun chat(userMessage: String): String = withContext(Dispatchers.Default) {
         val prompt = buildString {
             append("<|im_start|>system\n")
-            append("You are a friendly diet and nutrition assistant. Keep replies short (2-4 sentences).<|im_end|>\n")
+            append("You are a diet assistant. Keep replies short.<|im_end|>\n")
             append("<|im_start|>user\n")
             append(userMessage.trim())
             append("<|im_end|>\n")
@@ -87,7 +102,7 @@ class AssistantEngine(private val appContext: Context) {
     suspend fun estimateMacros(description: String): MacroEstimate = withContext(Dispatchers.Default) {
         val prompt = buildString {
             append("<|im_start|>system\n")
-            append("Estimate calories/macros. Reply with ONE line of strict JSON: ")
+            append("Estimate macros. Reply ONE line JSON: ")
             append("{\"name\":string,\"calories\":int,\"proteinG\":int,\"carbsG\":int,\"fatsG\":int}<|im_end|>\n")
             append("<|im_start|>user\n")
             append(description.trim())
@@ -97,10 +112,6 @@ class AssistantEngine(private val appContext: Context) {
         val raw = runLlm(prompt)
         raw?.let { parseMacroJson(it) } ?: error("Failed to generate MacroEstimate")
     }
-
-    // -----------------------------------------------------------------------
-    // Internals
-    // -----------------------------------------------------------------------
 
     private suspend fun runLlm(prompt: String): String? {
         val currentEngine = ensureLoaded() ?: return null
@@ -119,7 +130,7 @@ class AssistantEngine(private val appContext: Context) {
     }
 
     private fun fallbackChat(userMessage: String): String {
-        return "I'm a small offline diet assistant. Add a model.litertlm file for smarter answers."
+        return "I'm in heuristic mode. Add 'model.litertlm' to your 'llm' folder to enable AI."
     }
 
     private fun parseMacroJson(raw: String): MacroEstimate? {
@@ -127,28 +138,21 @@ class AssistantEngine(private val appContext: Context) {
         val close = raw.lastIndexOf('}')
         if (open < 0 || close <= open) return null
         val body = raw.substring(open + 1, close)
-
         val name = extractString(body, "name") ?: "Meal"
         val calories = extractInt(body, "calories") ?: return null
-        val protein = extractInt(body, "proteinG") ?: 0
-        val carbs = extractInt(body, "carbsG") ?: 0
-        val fats = extractInt(body, "fatsG") ?: 0
-
         return MacroEstimate(
             name = name.ifBlank { "Meal" },
-            calories = calories.coerceAtLeast(0),
-            proteinG = protein.coerceAtLeast(0),
-            carbsG = carbs.coerceAtLeast(0),
-            fatsG = fats.coerceAtLeast(0),
+            calories = calories,
+            proteinG = extractInt(body, "proteinG") ?: 0,
+            carbsG = extractInt(body, "carbsG") ?: 0,
+            fatsG = extractInt(body, "fatsG") ?: 0,
             source = MacroSource.Llm,
         )
     }
 
     private fun extractString(body: String, key: String): String? {
         val pattern = Regex("\"$key\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"")
-        return pattern.find(body)?.groupValues?.get(1)
-            ?.replace("\\\"", "\"")
-            ?.replace("\\\\", "\\")
+        return pattern.find(body)?.groupValues?.get(1)?.replace("\\\"", "\"")
     }
 
     private fun extractInt(body: String, key: String): Int? {

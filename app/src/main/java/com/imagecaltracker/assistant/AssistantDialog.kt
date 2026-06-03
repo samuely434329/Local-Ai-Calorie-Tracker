@@ -87,7 +87,11 @@ fun AssistantDialog(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            HeaderRow(usingFallback = state.usingFallback, onClose = onDismiss)
+            HeaderRow(
+                usingFallback = state.usingFallback, 
+                statusMessage = state.statusMessage,
+                onClose = onDismiss
+            )
             TabSwitcher(current = tab, onSelect = { tab = it })
             HorizontalDivider(color = SketchColors.GridLine, thickness = 0.6.dp)
 
@@ -127,7 +131,7 @@ private enum class AssistantTab { Chat, Scan }
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun HeaderRow(usingFallback: Boolean, onClose: () -> Unit) {
+private fun HeaderRow(usingFallback: Boolean, statusMessage: String, onClose: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -140,9 +144,9 @@ private fun HeaderRow(usingFallback: Boolean, onClose: () -> Unit) {
                 color = SketchColors.InkDark,
             )
             Text(
-                text = if (usingFallback) "offline · heuristic mode" else "offline · local model",
+                text = "offline · $statusMessage",
                 style = MaterialTheme.typography.labelSmall,
-                color = SketchColors.InkLight,
+                color = if (usingFallback) SketchColors.InkMid else SketchColors.InkLight,
             )
         }
         SketchyButton(
