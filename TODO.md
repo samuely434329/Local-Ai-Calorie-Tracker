@@ -1,3 +1,3 @@
-Download gemma gemma-2b-it-cpu-int4.task 
+qwen local agent not working (heuristic fallback only)
 
-put it on device 
+use logcat to debug

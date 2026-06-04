@@ -2,6 +2,7 @@ package com.imagecaltracker.assistant
 
 import android.content.Context
 import android.util.Log
+import com.google.ai.client.generativeai.type.content
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Engine
@@ -102,7 +103,7 @@ class AssistantEngine(private val appContext: Context) {
     suspend fun estimateMacros(description: String): MacroEstimate = withContext(Dispatchers.Default) {
         val prompt = buildString {
             append("<|im_start|>system\n")
-            append("Estimate macros. Reply ONE line JSON: ")
+            append("Estimate macronutrients. Reply ONE line JSON: ")
             append("{\"name\":string,\"calories\":int,\"proteinG\":int,\"carbsG\":int,\"fatsG\":int}<|im_end|>\n")
             append("<|im_start|>user\n")
             append(description.trim())
@@ -118,7 +119,8 @@ class AssistantEngine(private val appContext: Context) {
         return try {
             currentEngine.createConversation().use { conversation ->
                 val response = conversation.sendMessage(prompt)
-                val text = response.contents.contents
+                // June 4th edited
+                val text = response.content
                     .filterIsInstance<Content.Text>()
                     .joinToString("") { it.text }
                 text.trim().takeIf { it.isNotEmpty() }
