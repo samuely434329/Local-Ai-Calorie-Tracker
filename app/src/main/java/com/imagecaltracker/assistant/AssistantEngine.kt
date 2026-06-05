@@ -1,8 +1,8 @@
 package com.imagecaltracker.assistant
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
-import com.google.ai.client.generativeai.type.content
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Engine
@@ -39,45 +39,55 @@ class AssistantEngine(private val appContext: Context) {
         ensureLoaded()
     }
 
-    private suspend fun ensureLoaded(): Engine? = initLock.withLock {
-        if (engine != null) return engine
+    private suspend fun ensureLoaded(): Engine? = withContext(Dispatchers.IO) {
+        initLock.withLock {
+            if (engine != null) return@withLock engine
 
-        val dir = File(appContext.getExternalFilesDir(null), "llm").apply { mkdirs() }
-        
-        var file = File(dir, "model.litertlm")
-        if (!file.exists() || file.length() == 0L) {
-            val autoFile = dir.listFiles()?.find { 
-                it.name.endsWith(".litertlm", ignoreCase = true) || 
-                it.name.endsWith(".task", ignoreCase = true) 
+            val dir = File(appContext.getExternalFilesDir(null), "llm").apply { mkdirs() }
+            
+            var file = File(dir, "model.litertlm")
+            if (!file.exists() || file.length() == 0L) {
+                val autoFile = dir.listFiles()?.find { 
+                    it.name.endsWith(".litertlm", ignoreCase = true) || 
+                    it.name.endsWith(".task", ignoreCase = true) 
+                }
+                if (autoFile != null) {
+                    file = autoFile
+                }
             }
-            if (autoFile != null) {
-                file = autoFile
+
+            if (!file.exists() || file.length() == 0L) {
+                loadAttempted = true
+                lastError = "Model not found in ${dir.absolutePath}"
+                Log.w(TAG, lastError!!)
+                return@withLock null
             }
-        }
 
-        if (!file.exists() || file.length() == 0L) {
-            loadAttempted = true
-            lastError = "Model not found in ${dir.absolutePath}"
-            Log.w(TAG, lastError!!)
-            return null
-        }
+            Log.d(TAG, "Initializing LiteRT-LM with: ${file.name} (${file.length() / 1024 / 1024} MB)...")
+            
+            if (isEmulator() && Build.SUPPORTED_ABIS.firstOrNull()?.contains("x86") == true) {
+                loadAttempted = true
+                lastError = "AI not supported on x86 emulators (Native library incompatibility)"
+                Log.w(TAG, lastError!!)
+                return@withLock null
+            }
 
-        Log.d(TAG, "Initializing LiteRT-LM with: ${file.name} (${file.length() / 1024 / 1024} MB)...")
-        return try {
-            val config = EngineConfig(
-                modelPath = file.absolutePath,
-                backend = Backend.CPU()
-            )
-            val newEngine = Engine(config)
-            newEngine.initialize()
-            engine = newEngine
-            loadAttempted = true
-            newEngine
-        } catch (t: Throwable) {
-            loadAttempted = true
-            lastError = "Init failed: ${t.message}"
-            Log.e(TAG, lastError!!, t)
-            null
+            try {
+                val config = EngineConfig(
+                    modelPath = file.absolutePath,
+                    backend = Backend.CPU()
+                )
+                val newEngine = Engine(config)
+                newEngine.initialize()
+                engine = newEngine
+                loadAttempted = true
+                newEngine
+            } catch (t: Throwable) {
+                loadAttempted = true
+                lastError = "Init failed: ${t.message}"
+                Log.e(TAG, lastError!!, t)
+                null
+            }
         }
     }
 
@@ -120,7 +130,7 @@ class AssistantEngine(private val appContext: Context) {
             currentEngine.createConversation().use { conversation ->
                 val response = conversation.sendMessage(prompt)
                 // June 4th edited
-                val text = response.content
+                val text = response.contents.contents
                     .filterIsInstance<Content.Text>()
                     .joinToString("") { it.text }
                 text.trim().takeIf { it.isNotEmpty() }
@@ -162,8 +172,24 @@ class AssistantEngine(private val appContext: Context) {
         return pattern.find(body)?.groupValues?.get(1)?.toIntOrNull()
     }
 
+    private fun isEmulator(): Boolean {
+        return Build.DEVICE.contains("generic") ||
+                Build.FINGERPRINT.contains("generic") ||
+                Build.MODEL.contains("google_sdk") ||
+                Build.MODEL.contains("Emulator") ||
+                Build.HARDWARE.contains("ranchu") ||
+                Build.PRODUCT.contains("sdk_gphone")
+    }
+
     companion object {
         private const val TAG = "AssistantEngine"
+        init {
+            try {
+                System.loadLibrary("litertlm_jni")
+            } catch (t: Throwable) {
+                Log.w("AssistantEngine", "Native library 'litertlm_jni' not pre-loaded: ${t.message}")
+            }
+        }
     }
 }
 

@@ -65,7 +65,12 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     init {
         // Start engine initialization immediately when the dialog opens.
         viewModelScope.launch {
-            engine.initialize()
+            try {
+                engine.initialize()
+            } catch (e: Exception) {
+                // AssistantEngine.initialize should catch internally, but we wrap here too
+                // to prevent any bubbling exceptions from crashing the VM scope.
+            }
             _state.value = _state.value.copy(
                 usingFallback = engine.usingFallback,
                 statusMessage = engine.statusMessage
