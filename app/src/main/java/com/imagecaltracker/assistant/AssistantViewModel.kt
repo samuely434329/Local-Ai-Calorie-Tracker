@@ -2,14 +2,20 @@ package com.imagecaltracker.assistant
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
+import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -43,6 +49,8 @@ data class AssistantUiState(
     val estimating: Boolean = false,
     val estimate: MacroEstimate? = null,
     val usingFallback: Boolean = false,
+    val downloading: Boolean = false,
+    val downloadProgress: Float = 0f,
     val statusMessage: String = "Checking...",
 )
 
@@ -188,6 +196,92 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
                 usingFallback = engine.usingFallback,
                 statusMessage = engine.statusMessage,
             )
+        }
+    }
+
+    fun downloadModel() {
+        if (_state.value.downloading) return
+        
+        _state.value = _state.value.copy(downloading = true, statusMessage = "Downloading model...")
+        
+        viewModelScope.launch {
+            val success = withContext(Dispatchers.IO) {
+                try {
+                    val dir = File(getApplication<Application>().getExternalFilesDir(null), "llm").apply { mkdirs() }
+                    val file = File(dir, "model.litertlm")
+                    
+                    // Public sample URL for a LiteRT-LM compatible Qwen model
+                    val modelUrl = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/qwen3-0.6b-it-litert.bin"
+                    
+                    var connection = URL(modelUrl).openConnection() as java.net.HttpURLConnection
+                    connection.connectTimeout = 30000
+                    connection.readTimeout = 30000
+                    connection.instanceFollowRedirects = true
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    
+                    var responseCode = connection.responseCode
+                    
+                    // Manually follow redirects if the automatic one fails (common across http/https)
+                    var redirectCount = 0
+                    while (responseCode / 100 == 3 && redirectCount < 5) {
+                        val newUrl = connection.getHeaderField("Location")
+                        connection = URL(newUrl).openConnection() as java.net.HttpURLConnection
+                        connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+                        responseCode = connection.responseCode
+                        redirectCount++
+                    }
+
+                    if (responseCode != java.net.HttpURLConnection.HTTP_OK) {
+                        throw Exception("HTTP $responseCode: ${connection.responseMessage}")
+                    }
+                    
+                    val totalSize = connection.contentLength.toLong()
+                    val input = connection.inputStream
+                    val output = FileOutputStream(file)
+                    
+                    val buffer = ByteArray(16384)
+                    var bytesRead: Int
+                    var totalRead = 0L
+                    
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalRead += bytesRead
+                        if (totalSize > 0) {
+                            val progress = totalRead.toFloat() / totalSize
+                            _state.value = _state.value.copy(downloadProgress = progress)
+                        } else {
+                            // If totalSize is unknown, just pulse the status
+                            _state.value = _state.value.copy(statusMessage = "Downloading... (${totalRead / 1024 / 1024} MB)")
+                        }
+                    }
+                    
+                    output.flush()
+                    output.close()
+                    input.close()
+                    true
+                } catch (e: Exception) {
+                    Log.e("AssistantVM", "Download error: ${e.javaClass.simpleName} - ${e.message}")
+                    false
+                }
+            }
+            
+            if (success) {
+                engine.initialize()
+                _state.value = _state.value.copy(
+                    downloading = false,
+                    usingFallback = engine.usingFallback,
+                    statusMessage = engine.statusMessage
+                )
+            } else {
+                val errorMsg = _state.value.statusMessage
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(getApplication(), errorMsg, android.widget.Toast.LENGTH_LONG).show()
+                }
+                _state.value = _state.value.copy(
+                    downloading = false,
+                    statusMessage = "Download failed. Check connection."
+                )
+            }
         }
     }
 

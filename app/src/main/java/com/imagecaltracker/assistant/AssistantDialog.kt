@@ -90,6 +90,9 @@ fun AssistantDialog(
             HeaderRow(
                 usingFallback = state.usingFallback, 
                 statusMessage = state.statusMessage,
+                downloading = state.downloading,
+                downloadProgress = state.downloadProgress,
+                onDownload = viewModel::downloadModel,
                 onClose = onDismiss
             )
             TabSwitcher(current = tab, onSelect = { tab = it })
@@ -131,30 +134,48 @@ private enum class AssistantTab { Chat, Scan }
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun HeaderRow(usingFallback: Boolean, statusMessage: String, onClose: () -> Unit) {
+private fun HeaderRow(
+    usingFallback: Boolean,
+    statusMessage: String,
+    downloading: Boolean,
+    downloadProgress: Float,
+    onDownload: () -> Unit,
+    onClose: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "ASSISTANT",
                 style = MaterialTheme.typography.titleLarge,
                 color = SketchColors.InkDark,
             )
+            val progressText = if (downloading) " (${(downloadProgress * 100).toInt()}%)" else ""
             Text(
-                text = "offline · $statusMessage",
+                text = "offline · $statusMessage$progressText",
                 style = MaterialTheme.typography.labelSmall,
                 color = if (usingFallback) SketchColors.InkMid else SketchColors.InkLight,
             )
         }
-        SketchyButton(
-            text = "Close",
-            onClick = onClose,
-            seed = 811,
-            modifier = Modifier.widthIn(min = 88.dp),
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (usingFallback && !downloading) {
+                SketchyButton(
+                    text = "Download Model",
+                    onClick = onDownload,
+                    seed = 812,
+                    modifier = Modifier.widthIn(min = 120.dp),
+                )
+            }
+            SketchyButton(
+                text = "Close",
+                onClick = onClose,
+                seed = 811,
+                modifier = Modifier.widthIn(min = 88.dp),
+            )
+        }
     }
 }
 
