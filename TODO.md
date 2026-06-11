@@ -1,3 +1,6 @@
-qwen local agent not working (heuristic fallback only)
+trouble shoot ai not downloading/ not working
+use opus 4.7, android tools ssh. 
 
-use logcat to debug
+Link issue? model incompatibility? phone issue? 
+
+Improve UI! make it realistic and unique, a cutting edge realisitc screen

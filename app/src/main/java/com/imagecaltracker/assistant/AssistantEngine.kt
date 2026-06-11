@@ -107,7 +107,7 @@ class AssistantEngine(private val appContext: Context) {
             append("<|im_end|>\n")
             append("<|im_start|>assistant\n")
         }
-        runLlm(prompt) ?: fallbackChat(userMessage)
+        runLlm(prompt) ?: fallbackChat()
     }
 
     suspend fun estimateMacros(description: String): MacroEstimate = withContext(Dispatchers.Default) {
@@ -141,7 +141,7 @@ class AssistantEngine(private val appContext: Context) {
         }
     }
 
-    private fun fallbackChat(userMessage: String): String {
+    private fun fallbackChat(): String {
         return "I'm in heuristic mode. Add 'model.litertlm' to your 'llm' folder to enable AI."
     }
 
