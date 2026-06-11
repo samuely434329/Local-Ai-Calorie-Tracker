@@ -201,92 +201,136 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun downloadModel() {
         if (_state.value.downloading) return
-        
-        _state.value = _state.value.copy(downloading = true, statusMessage = "Downloading model...")
-        
-        viewModelScope.launch {
-            val success = withContext(Dispatchers.IO) {
-                try {
-                    val dir = File(getApplication<Application>().getExternalFilesDir(null), "llm").apply { mkdirs() }
-                    val file = File(dir, "model.litertlm")
-                    
-                    // Public sample URL for a LiteRT-LM compatible Qwen model
-                    val modelUrl = "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/qwen3-0.6b-it-litert.bin"
-                    
-                    var connection = URL(modelUrl).openConnection() as java.net.HttpURLConnection
-                    connection.connectTimeout = 30000
-                    connection.readTimeout = 30000
-                    connection.instanceFollowRedirects = true
-                    connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    
-                    var responseCode = connection.responseCode
-                    
-                    // Manually follow redirects if the automatic one fails (common across http/https)
-                    var redirectCount = 0
-                    while (responseCode / 100 == 3 && redirectCount < 5) {
-                        val newUrl = connection.getHeaderField("Location")
-                        connection = URL(newUrl).openConnection() as java.net.HttpURLConnection
-                        connection.setRequestProperty("User-Agent", "Mozilla/5.0")
-                        responseCode = connection.responseCode
-                        redirectCount++
-                    }
 
-                    if (responseCode != java.net.HttpURLConnection.HTTP_OK) {
-                        throw Exception("HTTP $responseCode: ${connection.responseMessage}")
+        _state.value = _state.value.copy(
+            downloading = true,
+            downloadProgress = 0f,
+            statusMessage = "Downloading model...",
+        )
+
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { performDownload() }
+
+            when (result) {
+                is DownloadResult.Success -> {
+                    engine.initialize()
+                    _state.value = _state.value.copy(
+                        downloading = false,
+                        usingFallback = engine.usingFallback,
+                        statusMessage = engine.statusMessage,
+                    )
+                }
+                is DownloadResult.Failure -> {
+                    val msg = "Download failed: ${result.reason}"
+                    Log.e("AssistantVM", msg)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(getApplication(), msg, Toast.LENGTH_LONG).show()
                     }
-                    
-                    val totalSize = connection.contentLength.toLong()
-                    val input = connection.inputStream
-                    val output = FileOutputStream(file)
-                    
-                    val buffer = ByteArray(16384)
-                    var bytesRead: Int
+                    _state.value = _state.value.copy(
+                        downloading = false,
+                        downloadProgress = 0f,
+                        statusMessage = msg,
+                    )
+                }
+            }
+        }
+    }
+
+    private sealed class DownloadResult {
+        object Success : DownloadResult()
+        data class Failure(val reason: String) : DownloadResult()
+    }
+
+    /**
+     * Download the LiteRT-LM Qwen model from Hugging Face. Saves to
+     * <external-files>/llm/Qwen3-0.6B.litertlm so the engine's auto-discovery
+     * picks it up.
+     *
+     * The HF resolve endpoint returns 302 to a CloudFront URL.
+     * HttpURLConnection follows that automatically when
+     * instanceFollowRedirects is true AND the redirect stays within the
+     * same protocol (https → https here, so it works).
+     */
+    private fun performDownload(): DownloadResult {
+        val dir = File(getApplication<Application>().getExternalFilesDir(null), "llm").apply { mkdirs() }
+        val targetFile = File(dir, MODEL_FILENAME)
+        val tempFile = File(dir, "$MODEL_FILENAME.part")
+
+        var connection: java.net.HttpURLConnection? = null
+        return try {
+            connection = (URL(MODEL_URL).openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = 30_000
+                readTimeout = 60_000
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "ImageCalTracker/1.0")
+            }
+
+            val code = connection.responseCode
+            if (code != java.net.HttpURLConnection.HTTP_OK) {
+                return DownloadResult.Failure("HTTP $code ${connection.responseMessage ?: ""}".trim())
+            }
+
+            val totalSize = connection.contentLengthLong.takeIf { it > 0 } ?: -1L
+            connection.inputStream.use { input ->
+                FileOutputStream(tempFile).use { output ->
+                    val buffer = ByteArray(64 * 1024)
                     var totalRead = 0L
-                    
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        totalRead += bytesRead
+                    var lastReportedPercent = -1
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n == -1) break
+                        output.write(buffer, 0, n)
+                        totalRead += n
                         if (totalSize > 0) {
-                            val progress = totalRead.toFloat() / totalSize
-                            _state.value = _state.value.copy(downloadProgress = progress)
+                            val pct = ((totalRead * 100) / totalSize).toInt()
+                            if (pct != lastReportedPercent) {
+                                lastReportedPercent = pct
+                                _state.value = _state.value.copy(
+                                    downloadProgress = pct / 100f,
+                                    statusMessage = "Downloading... $pct%",
+                                )
+                            }
                         } else {
-                            // If totalSize is unknown, just pulse the status
-                            _state.value = _state.value.copy(statusMessage = "Downloading... (${totalRead / 1024 / 1024} MB)")
+                            // Unknown size — report MB every ~4 MB.
+                            val mb = (totalRead / 1024 / 1024).toInt()
+                            if (mb % 4 == 0) {
+                                _state.value = _state.value.copy(
+                                    statusMessage = "Downloading... ${mb} MB",
+                                )
+                            }
                         }
                     }
-                    
                     output.flush()
-                    output.close()
-                    input.close()
-                    true
-                } catch (e: Exception) {
-                    Log.e("AssistantVM", "Download error: ${e.javaClass.simpleName} - ${e.message}")
-                    false
                 }
             }
-            
-            if (success) {
-                engine.initialize()
-                _state.value = _state.value.copy(
-                    downloading = false,
-                    usingFallback = engine.usingFallback,
-                    statusMessage = engine.statusMessage
-                )
-            } else {
-                val errorMsg = _state.value.statusMessage
-                withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(getApplication(), errorMsg, android.widget.Toast.LENGTH_LONG).show()
-                }
-                _state.value = _state.value.copy(
-                    downloading = false,
-                    statusMessage = "Download failed. Check connection."
-                )
+
+            // Atomic-ish swap so a half-written file never poses as a real model.
+            if (targetFile.exists()) targetFile.delete()
+            if (!tempFile.renameTo(targetFile)) {
+                return DownloadResult.Failure("Could not move downloaded file into place")
             }
+            DownloadResult.Success
+        } catch (t: Throwable) {
+            tempFile.delete()
+            DownloadResult.Failure("${t.javaClass.simpleName}: ${t.message ?: "unknown error"}")
+        } finally {
+            connection?.disconnect()
         }
     }
 
     override fun onCleared() {
         super.onCleared()
         engine.close()
+    }
+
+    companion object {
+        /**
+         * Default LiteRT-LM Qwen3 0.6B model. The Hugging Face repo also offers
+         * a smaller mixed-int4 variant (qwen3_0_6b_mixed_int4.litertlm) — swap
+         * the URL if you want a smaller / faster model on lower-end phones.
+         */
+        private const val MODEL_URL =
+            "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm"
+        private const val MODEL_FILENAME = "Qwen3-0.6B.litertlm"
     }
 }
