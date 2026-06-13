@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<paths>
-    <!-- Captured photos go to the app's external-files cache so they are
-         scoped to the app and removed on uninstall. The path 'assistant_photos'
-         matches the directory created by AssistantViewModel. -->
-    <external-files-path
-        name="assistant_photos"
-        path="assistant_photos/" />
-</paths>
