@@ -1,3 +1,3 @@
-qwen local agent not working (heuristic fallback only)
+determine which qwen model currently used, 
 
-use logcat to debug
+..thinking flashing to show its thinking, when respond don't show <think> text <think>
