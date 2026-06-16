@@ -272,6 +272,7 @@ private fun ChatTab(
             if (state.sending) {
                 item(key = "typing") {
                     ChatBubble(
+                        // make the thinking flash in and out
                         ChatMessage(id = -1L, role = ChatRole.Assistant, text = "…thinking"),
                     )
                 }
