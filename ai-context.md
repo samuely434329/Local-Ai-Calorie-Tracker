@@ -17,6 +17,25 @@ All assistant code paths compile structurally. The repo still ships without a
 Gradle wrapper, so the very first build must be done in Android Studio (it
 will offer to generate the wrapper on import — accept).
 
+## Completed (2026-06-20)
+
+- **Animated "thinking" indicator.** While the assistant is generating a
+  reply, the chat tab now shows a dedicated `ThinkingBubble` whose text
+  color smoothly lerps between `InkLight` and `InkDark` on a 1.4 s
+  reverse loop (Compose `rememberInfiniteTransition` + `animateFloat`).
+  Replaces the previous static "…thinking" placeholder, which looked
+  identical to a stuck UI on slower devices.
+- **Strip Qwen3 reasoning trace from output.** Qwen3 0.6B emits an
+  internal `<think>…</think>` block before its real answer. Added
+  `AssistantEngine.stripThinking()`, called inside `runLlm()`, which:
+    - Removes all properly closed `<think>…</think>` blocks (regex,
+      DOTALL + case-insensitive).
+    - If a stray opening `<think` tag has no closing tag, drops everything
+      from that tag onward.
+    - Returns input unchanged when no `<think` token is present.
+  Result: chat replies and the macro JSON parser only see the model's
+  final user-visible answer.
+
 ## Completed (2026-06-09)
 
 - **Qwen download bug fixed** — `AssistantViewModel.downloadModel()` was

@@ -3,6 +3,12 @@ package com.imagecaltracker.assistant
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -271,10 +278,13 @@ private fun ChatTab(
             }
             if (state.sending) {
                 item(key = "typing") {
+
                     ChatBubble(
-                        // make the thinking flash in and out
                         ChatMessage(id = -1L, role = ChatRole.Assistant, text = "…thinking"),
                     )
+
+                    ThinkingBubble()
+>>>>>>> fcad178 (gitignore shenanigans, ..thinking shade, <think>)
                 }
             }
         }
@@ -334,6 +344,60 @@ private fun ChatBubble(msg: ChatMessage) {
         }
     }
 }
+
+/**
+ * Placeholder bubble shown while the model is generating. A pulsing color
+ * shade tells the user the assistant is alive — not stuck — even though
+ * we can't stream partial tokens out of the LiteRT-LM API yet.
+ */
+@Composable
+private fun ThinkingBubble() {
+    val transition = rememberInfiniteTransition(label = "thinking")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "thinking-phase",
+    )
+    // Lerp between two ink shades so the text smoothly fades light → dark → light.
+    val animatedColor = Color(
+        red = lerp(SketchColors.InkLight.red, SketchColors.InkDark.red, phase),
+        green = lerp(SketchColors.InkLight.green, SketchColors.InkDark.green, phase),
+        blue = lerp(SketchColors.InkLight.blue, SketchColors.InkDark.blue, phase),
+        alpha = 1f,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 320.dp)
+                .background(
+                    color = SketchColors.PaperShadow.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(10.dp),
+                )
+                .sketchyBorder(
+                    color = SketchColors.InkDark,
+                    strokeWidth = 1.2.dp,
+                    cornerRadius = 10.dp,
+                    seed = 905,
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text(
+                text = "thinking…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = animatedColor,
+            )
+        }
+    }
+}
+
+private fun lerp(a: Float, b: Float, t: Float): Float = a + (b - a) * t
 
 // ---------------------------------------------------------------------------
 // Scan tab
