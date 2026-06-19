@@ -4,6 +4,39 @@ app/build/
 .gradle/
 .cxx/
 .externalNativeBuild/
+
+# Kotlin
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Gradle cache/generated files
+**/buildOutputCleanup.lock
+**/outputFiles.bin
+**/file-system.probe
+
+# Local machine-specific settings
+local.properties
+
+# Gradle wrapper (usually SHOULD be committed, so keep these UNIGNORED)
+# /gradlew
+# /gradlew.bat
+# /gradle/wrapper/gradle-wrapper.jar
+# /gradle/wrapper/gradle-wrapper.properties<<<<<<< HEAD
+# Android build output
+app/build/
+**/build/
+.gradle/
+.cxx/
+.externalNativeBuild/
 /.kotlin/errors/errors-1780275764672.log
 /gradle/wrapper/gradle-wrapper.jar
 /gradle/wrapper/gradle-wrapper.properties
@@ -17,3 +50,26 @@ app/build/
 
 # Local machine-specific settings
 local.properties
+=======
+# Gradle
+.gradle/
+build/
+
+# Local config
+local.properties
+
+# Kotlin
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+
+>>>>>>> d27e5cd (add gitignore)
