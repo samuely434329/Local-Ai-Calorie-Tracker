@@ -1,0 +1,19 @@
+# Android build output
+app/build/
+**/build/
+.gradle/
+.cxx/
+.externalNativeBuild/
+/.kotlin/errors/errors-1780275764672.log
+/gradle/wrapper/gradle-wrapper.jar
+/gradle/wrapper/gradle-wrapper.properties
+/gradlew
+/gradlew.bat
+
+# Gradle cache/generated files
+**/buildOutputCleanup.lock
+**/outputFiles.bin
+**/file-system.probe
+
+# Local machine-specific settings
+local.properties

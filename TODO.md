@@ -1,6 +1,5 @@
-trouble shoot ai not downloading/ not working
-use opus 4.7, android tools ssh. 
+determine which qwen model currently used (qwen 3 0.6B)
 
-Link issue? model incompatibility? phone issue? 
+..thinking flashing to show its thinking, 
 
-Improve UI! make it realistic and unique, a cutting edge realisitc screen
+when respond don't show <think> text <think>
