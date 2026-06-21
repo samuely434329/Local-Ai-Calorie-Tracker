@@ -107,7 +107,7 @@ class AssistantEngine(private val appContext: Context) {
             append("<|im_end|>\n")
             append("<|im_start|>assistant\n")
         }
-        runLlm(prompt) ?: fallbackChat()
+        runLlm(prompt) ?: fallbackChat(userMessage)
     }
 
     suspend fun estimateMacros(description: String): MacroEstimate = withContext(Dispatchers.Default) {
@@ -133,7 +133,7 @@ class AssistantEngine(private val appContext: Context) {
                 val text = response.contents.contents
                     .filterIsInstance<Content.Text>()
                     .joinToString("") { it.text }
-                text.trim().takeIf { it.isNotEmpty() }
+                stripThinking(text).trim().takeIf { it.isNotEmpty() }
             }
         } catch (t: Throwable) {
             Log.w(TAG, "sendMessage failed: ${t.message}", t)
@@ -141,7 +141,27 @@ class AssistantEngine(private val appContext: Context) {
         }
     }
 
-    private fun fallbackChat(): String {
+    /**
+     * Qwen3 emits an internal reasoning trace inside <think>...</think> tags
+     * before the user-visible answer. We never want to show that to the user
+     * and the macro JSON parser shouldn't have to wade through it either.
+     *
+     * Handles three cases:
+     *  - Properly closed <think>…</think> blocks (any number, anywhere): removed.
+     *  - An unclosed <think> with no closing tag: drop everything after the
+     *    opening tag, on the assumption the model never produced a final answer.
+     *  - No <think> tags at all: return input unchanged.
+     */
+    private fun stripThinking(raw: String): String {
+        if (!raw.contains("<think", ignoreCase = true)) return raw
+        // Remove all closed think blocks first.
+        val closed = Regex("(?is)<think>.*?</think>").replace(raw, "")
+        // If a stray opening tag remains, cut everything from it onward.
+        val openIdx = closed.indexOf("<think", ignoreCase = true)
+        return if (openIdx >= 0) closed.substring(0, openIdx) else closed
+    }
+
+    private fun fallbackChat(userMessage: String): String {
         return "I'm in heuristic mode. Add 'model.litertlm' to your 'llm' folder to enable AI."
     }
 
