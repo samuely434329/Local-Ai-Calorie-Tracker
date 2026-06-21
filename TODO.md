@@ -6,8 +6,8 @@
 [//]: # ()
 [//]: # (when respond don't show <think> text <think> X)
 
-reponse has two boxes of .. thinking, top box is static, bottom is great.
+[//]: # (reponse has two boxes of .. thinking, top box is static, bottom is great. X)
 
-Hello! how can i help with diet RANDOMSYMBOLSHERE
+Hello! how can i help with diet RANDOMSYMBOLSHERE (temp, likely just small model issue)
 
 use sketched pngs or drawing for ui theme

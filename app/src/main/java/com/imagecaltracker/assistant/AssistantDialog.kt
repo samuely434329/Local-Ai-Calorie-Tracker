@@ -221,7 +221,10 @@ private fun TabPill(
     Box(
         modifier = modifier
             .heightIn(min = 40.dp)
-            .background(color = accent.copy(alpha = if (selected) 0.55f else 0f), shape = RoundedCornerShape(8.dp))
+            .background(
+                color = accent.copy(alpha = if (selected) 0.55f else 0f),
+                shape = RoundedCornerShape(8.dp)
+            )
             .sketchyBorder(
                 color = SketchColors.InkDark,
                 strokeWidth = if (selected) 1.8.dp else 1.2.dp,
@@ -279,10 +282,9 @@ private fun ChatTab(
             if (state.sending) {
                 item(key = "typing") {
 
-                    ChatBubble(
-                        ChatMessage(id = -1L, role = ChatRole.Assistant, text = "…thinking"),
-                    )
-
+//                    ChatBubble(
+//                        ChatMessage(id = -1L, role = ChatRole.Assistant, text = "…thinking"),
+//                    )
                     ThinkingBubble()
                 }
             }
@@ -539,7 +541,10 @@ private fun EstimateCard(estimate: MacroEstimate, onAddToLog: (MacroEstimate) ->
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(color = SketchColors.AccentBlueSoft.copy(alpha = 0.25f), shape = RoundedCornerShape(10.dp))
+            .background(
+                color = SketchColors.AccentBlueSoft.copy(alpha = 0.25f),
+                shape = RoundedCornerShape(10.dp)
+            )
             .sketchyBorder(
                 color = SketchColors.InkDark,
                 strokeWidth = 1.4.dp,
