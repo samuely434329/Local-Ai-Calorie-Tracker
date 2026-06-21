@@ -284,7 +284,6 @@ private fun ChatTab(
                     )
 
                     ThinkingBubble()
->>>>>>> fcad178 (gitignore shenanigans, ..thinking shade, <think>)
                 }
             }
         }
