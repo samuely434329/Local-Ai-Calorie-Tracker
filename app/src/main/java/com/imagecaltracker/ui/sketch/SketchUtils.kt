@@ -213,31 +213,31 @@ fun Modifier.graphPaperBackground(
  *
  * Optimized version with fewer layers to prevent emulator lag.
  */
-fun Modifier.smudgeBackground(
-    color: Color = SketchColors.InkSmudge,
-    count: Int = 8,
-    seed: Int = 13,
-): Modifier = drawBehind {
-    val rand = sketchRandom(seed)
-    repeat(count) {
-        val cx = rand.nextFloat() * size.width
-        val cy = rand.nextFloat() * size.height
-        val rx = 20f + rand.nextFloat() * 40f
-        val ry = 10f + rand.nextFloat() * 25f
-        
-        // Just 2 overlapping ellipses for a soft effect without killing performance.
-        repeat(2) { l ->
-            val a = (rand.nextFloat() * 0.05f + 0.03f) * (1f - l * 0.5f)
-            val ox = (rand.nextFloat() - 0.5f) * 12f
-            val oy = (rand.nextFloat() - 0.5f) * 12f
-            drawOval(
-                color = color.copy(alpha = a),
-                topLeft = Offset(cx - rx + ox, cy - ry + oy),
-                size = Size(rx * 2f, ry * 2f),
-            )
-        }
-    }
-}
+//fun Modifier.smudgeBackground(
+//    color: Color = SketchColors.InkSmudge,
+//    count: Int = 8,
+//    seed: Int = 13,
+//): Modifier = drawBehind {
+//    val rand = sketchRandom(seed)
+//    repeat(count) {
+//        val cx = rand.nextFloat() * size.width
+//        val cy = rand.nextFloat() * size.height
+//        val rx = 20f + rand.nextFloat() * 40f
+//        val ry = 10f + rand.nextFloat() * 25f
+//
+//        // Just 2 overlapping ellipses for a soft effect without killing performance.
+//        repeat(2) { l ->
+//            val a = (rand.nextFloat() * 0.05f + 0.03f) * (1f - l * 0.5f)
+//            val ox = (rand.nextFloat() - 0.5f) * 12f
+//            val oy = (rand.nextFloat() - 0.5f) * 12f
+//            drawOval(
+//                color = color.copy(alpha = a),
+//                topLeft = Offset(cx - rx + ox, cy - ry + oy),
+//                size = Size(rx * 2f, ry * 2f),
+//            )
+//        }
+//    }
+//}
 
 /**
  * Modifier that overlays fine pencil grain on top of content — tiny dark
@@ -304,7 +304,7 @@ fun PaperBackground(
     Box(
         modifier = modifier
             .graphPaperBackground(seed = seed)
-            .smudgeBackground(seed = seed + 1)
+            //.smudgeBackground(seed = seed + 1)
             .grainOverlay(seed = seed + 2),
         content = content,
     )

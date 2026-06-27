@@ -1,13 +1,9 @@
-[//]: # (determine which qwen model currently used &#40;qwen 3 0.6B&#41; X)
+Remove recent log button, remove from history button
 
-[//]: # ()
-[//]: # (..thinking flashing to show its thinking, X)
+make button circular, slightly bigger and shaded
 
-[//]: # ()
-[//]: # (when respond don't show <think> text <think> X)
+possibly rearrange ui
 
-[//]: # (reponse has two boxes of .. thinking, top box is static, bottom is great. X)
-
-Hello! how can i help with diet RANDOMSYMBOLSHERE (temp, likely just small model issue)
+add choose model button, 2 more models
 
 use sketched pngs or drawing for ui theme
