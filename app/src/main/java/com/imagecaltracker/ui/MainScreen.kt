@@ -96,7 +96,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         Image(
                             painter = painterResource(R.drawable.calorie_circle),
                             contentDescription = "calorie_circle",
-                            modifier = Modifier.size(width = 400.dp, height = 200.dp)
+                            modifier = Modifier.size(width = 450.dp, height = 225.dp)
                         )
                     }
                 }
