@@ -1,6 +1,5 @@
 package com.imagecaltracker.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,16 +33,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.imagecaltracker.data.FoodEntry
 import com.imagecaltracker.assistant.AssistantDialog
+import com.imagecaltracker.data.FoodEntry
 import com.imagecaltracker.ui.sketch.PaperBackground
 import com.imagecaltracker.ui.sketch.SketchyButton
+import com.imagecaltracker.ui.sketch.SketchyCalorieRing
 import com.imagecaltracker.ui.sketch.SketchyMacroBar
 import com.imagecaltracker.ui.sketch.SketchyTextField
 import com.imagecaltracker.ui.sketch.sketchyBorder
@@ -54,7 +52,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import com.imagecaltracker.R
 
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
@@ -72,7 +69,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 .fillMaxSize()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            // Top bar: date on the left, overflow menu on the right.
             TopBar(
                 date = uiState.date,
                 onEditGoals = { showGoalsDialog = true },
@@ -82,8 +78,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 
             Spacer(Modifier.height(8.dp))
 
-            // Calorie ring + macro bars + input form + log all live in a scrollable column,
-            // because on smaller screens the content overflows.
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -93,10 +87,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Image(
-                            painter = painterResource(R.drawable.calorie_circle),
-                            contentDescription = "calorie_circle",
-                            modifier = Modifier.size(width = 450.dp, height = 225.dp)
+                        SketchyCalorieRing(
+                            current = uiState.totalCalories,
+                            target = uiState.goals.calories,
                         )
                     }
                 }
@@ -198,7 +191,6 @@ private fun TopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Date — top-left, clean and readable.
         Column {
             Text(
                 text = date.format(DateTimeFormatter.ofPattern("EEEE")),
@@ -212,9 +204,6 @@ private fun TopBar(
             )
         }
 
-        // Right cluster: assistant button + overflow menu.
-        // Assistant lives immediately to the LEFT of the 3-dot menu so the
-        // existing menu ordering (history / goals) stays untouched.
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onOpenAssistant) {
                 Icon(
@@ -302,7 +291,6 @@ private fun AddEntryForm(
     ) {
         SectionTitle("ADD MEAL / FOOD")
 
-        // Row 1: name (wide) + calories.
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(modifier = Modifier.weight(2f)) {
                 FieldLabel("FOOD ITEM NAME")
@@ -326,7 +314,6 @@ private fun AddEntryForm(
             }
         }
 
-        // Row 2: protein / carbs / fats / +.
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.Bottom,

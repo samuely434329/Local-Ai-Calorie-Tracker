@@ -1,6 +1,7 @@
 package com.imagecaltracker.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -10,7 +11,10 @@ import androidx.room.PrimaryKey
  * [timestampMillis] is the wall-clock instant the entry was created and
  * is used for both ordering ("Recent Log") and filtering by day.
  */
-@Entity(tableName = "food_entries")
+@Entity(
+    tableName = "food_entries",
+    indices = [Index(value = ["timestampMillis"])]
+)
 data class FoodEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val name: String,

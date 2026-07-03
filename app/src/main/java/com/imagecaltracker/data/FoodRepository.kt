@@ -1,6 +1,8 @@
 package com.imagecaltracker.data
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
@@ -19,7 +21,7 @@ class FoodRepository(private val dao: FoodEntryDao) {
     fun observeEntriesForDate(date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Flow<List<FoodEntry>> {
         val start = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val end = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        return dao.observeRange(start, end)
+        return dao.observeRange(start, end).flowOn(Dispatchers.IO)
     }
 
     /**
@@ -27,19 +29,21 @@ class FoodRepository(private val dao: FoodEntryDao) {
      * Buckets by local-time date in the supplied [zone].
      */
     fun observeHistory(today: LocalDate, zone: ZoneId = ZoneId.systemDefault()): Flow<List<DaySummary>> =
-        dao.observeAll().map { entries ->
-            entries
-                .groupBy { Instant.ofEpochMilli(it.timestampMillis).atZone(zone).toLocalDate() }
-                .filterKeys { it != today }
-                .map { (date, dayEntries) ->
-                    DaySummary(
-                        date = date,
-                        entryCount = dayEntries.size,
-                        totalCalories = dayEntries.sumOf { it.calories },
-                    )
-                }
-                .sortedByDescending { it.date }
-        }
+        dao.observeAll()
+            .map { entries ->
+                entries
+                    .groupBy { Instant.ofEpochMilli(it.timestampMillis).atZone(zone).toLocalDate() }
+                    .filterKeys { it != today }
+                    .map { (date, dayEntries) ->
+                        DaySummary(
+                            date = date,
+                            entryCount = dayEntries.size,
+                            totalCalories = dayEntries.sumOf { it.calories },
+                        )
+                    }
+                    .sortedByDescending { it.date }
+            }
+            .flowOn(Dispatchers.Default)
 
     suspend fun add(entry: FoodEntry): Long = dao.insert(entry)
 

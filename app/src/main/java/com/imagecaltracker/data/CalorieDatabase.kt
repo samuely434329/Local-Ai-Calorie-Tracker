@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [FoodEntry::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class CalorieDatabase : RoomDatabase() {
@@ -24,7 +24,10 @@ abstract class CalorieDatabase : RoomDatabase() {
                     context.applicationContext,
                     CalorieDatabase::class.java,
                     "calorie-tracker.db",
-                ).build().also { instance = it }
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
+                    .also { instance = it }
             }
     }
 }
