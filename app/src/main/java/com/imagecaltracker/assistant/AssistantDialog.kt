@@ -281,10 +281,6 @@ private fun ChatTab(
             }
             if (state.sending) {
                 item(key = "typing") {
-
-//                    ChatBubble(
-//                        ChatMessage(id = -1L, role = ChatRole.Assistant, text = "…thinking"),
-//                    )
                     ThinkingBubble()
                 }
             }
@@ -405,7 +401,7 @@ private fun lerp(a: Float, b: Float, t: Float): Float = a + (b - a) * t
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun ScanTab(
+public fun ScanTab(
     state: AssistantUiState,
     onNewPhotoUri: () -> Uri,
     onPhotoCaptured: (Uri) -> Unit,
@@ -521,6 +517,7 @@ private fun ScanTab(
             }
         }
 
+        //
         SketchyButton(
             text = if (state.estimating) "Estimating…" else "Estimate Macros",
             enabled = canEstimate,

@@ -97,7 +97,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     MacroRow(state = uiState)
                 }
                 item {
-                    AddEntryForm(onSubmit = viewModel::addEntry)
+                    AddEntryForm(
+                        onSubmit = viewModel::addEntry,
+                        onQuickScan = { showAssistantDialog = true }
+                    )
                 }
                 item {
                     SectionTitle("RECENT LOG")
@@ -275,6 +278,7 @@ private fun MacroRow(state: MainUiState) {
 @Composable
 private fun AddEntryForm(
     onSubmit: (name: String, calories: Int, protein: Int, carbs: Int, fats: Int) -> Unit,
+    onQuickScan: () -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf("") }
     var calories by rememberSaveable { mutableStateOf("") }
@@ -289,7 +293,14 @@ private fun AddEntryForm(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        SectionTitle("ADD MEAL / FOOD")
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionTitle("ADD MEAL / FOOD")
+            SketchyButton(
+                text = "Quick Scan",
+                onClick = onQuickScan
+                //modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(modifier = Modifier.weight(2f)) {
