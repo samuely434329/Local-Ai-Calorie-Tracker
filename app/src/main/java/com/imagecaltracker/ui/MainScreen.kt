@@ -1,5 +1,7 @@
 package com.imagecaltracker.ui
 
+import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,11 +12,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MoreVert
@@ -33,16 +38,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.imagecaltracker.assistant.AssistantDialog
+import com.imagecaltracker.assistant.AssistantViewModel
 import com.imagecaltracker.data.FoodEntry
 import com.imagecaltracker.ui.sketch.PaperBackground
 import com.imagecaltracker.ui.sketch.SketchyButton
 import com.imagecaltracker.ui.sketch.SketchyCalorieRing
+import com.imagecaltracker.ui.sketch.SketchyFolderTab
 import com.imagecaltracker.ui.sketch.SketchyMacroBar
 import com.imagecaltracker.ui.sketch.SketchyTextField
 import com.imagecaltracker.ui.sketch.sketchyBorder
@@ -54,14 +64,22 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel()) {
+fun MainScreen(
+    viewModel: MainViewModel = viewModel(),
+    assistantViewModel: AssistantViewModel = viewModel(),
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val history by viewModel.historyFlow.collectAsStateWithLifecycle()
+    val assistantState by assistantViewModel.state.collectAsStateWithLifecycle()
 
     var showGoalsDialog by rememberSaveable { mutableStateOf(false) }
     var showHistoryDialog by rememberSaveable { mutableStateOf(false) }
     var showAssistantDialog by rememberSaveable { mutableStateOf(false) }
+    var showModelSheet by rememberSaveable { mutableStateOf(false) }
     var entryBeingEdited by remember { mutableStateOf<FoodEntry?>(null) }
+
+    val quickScanEnabled = assistantState.selectedModel.supportsQuickScan
+    val context = LocalContext.current
 
     PaperBackground(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -71,6 +89,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         ) {
             TopBar(
                 date = uiState.date,
+                modelLabel = assistantState.selectedModel.shortLabel,
+                modelDownloading = assistantState.anyDownloading,
+                onModelClick = { showModelSheet = true },
                 onEditGoals = { showGoalsDialog = true },
                 onShowHistory = { showHistoryDialog = true },
                 onOpenAssistant = { showAssistantDialog = true },
@@ -99,7 +120,15 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 item {
                     AddEntryForm(
                         onSubmit = viewModel::addEntry,
-                        onQuickScan = { showAssistantDialog = true }
+                        onQuickScan = { showAssistantDialog = true },
+                        quickScanEnabled = quickScanEnabled,
+                        onQuickScanBlocked = {
+                            Toast.makeText(
+                                context,
+                                "Switch to a Gemma model to use Quick Scan.",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        },
                     )
                 }
                 item {
@@ -161,6 +190,19 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     fatsG = estimate.fatsG,
                 )
             },
+            viewModel = assistantViewModel,
+        )
+    }
+
+    if (showModelSheet) {
+        ModelSettingsSheet(
+            models = assistantState.models,
+            selectedId = assistantState.selectedModel.id,
+            geminiApiKey = assistantState.geminiApiKey,
+            onSelectModel = assistantViewModel::setModel,
+            onDownloadModel = { assistantViewModel.downloadModel(it) },
+            onSaveGeminiKey = assistantViewModel::setGeminiApiKey,
+            onDismiss = { showModelSheet = false },
         )
     }
 
@@ -183,6 +225,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 @Composable
 private fun TopBar(
     date: LocalDate,
+    modelLabel: String,
+    modelDownloading: Boolean,
+    onModelClick: () -> Unit,
     onEditGoals: () -> Unit,
     onShowHistory: () -> Unit,
     onOpenAssistant: () -> Unit,
@@ -208,6 +253,12 @@ private fun TopBar(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
+            ModelChip(
+                label = modelLabel,
+                showActivity = modelDownloading,
+                onClick = onModelClick,
+            )
+            Spacer(Modifier.width(4.dp))
             IconButton(onClick = onOpenAssistant) {
                 Icon(
                     Icons.Default.AutoAwesome,
@@ -246,6 +297,42 @@ private fun TopBar(
 }
 
 @Composable
+private fun ModelChip(
+    label: String,
+    showActivity: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .heightIn(min = 32.dp)
+            .sketchyBorder(
+                color = SketchColors.InkDark,
+                strokeWidth = 1.2.dp,
+                cornerRadius = 8.dp,
+                seed = 1201,
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = SketchColors.InkDark,
+        )
+        if (showActivity) {
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(SketchColors.AccentBlue),
+            )
+        }
+    }
+}
+
+@Composable
 private fun MacroRow(state: MainUiState) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -279,12 +366,51 @@ private fun MacroRow(state: MainUiState) {
 private fun AddEntryForm(
     onSubmit: (name: String, calories: Int, protein: Int, carbs: Int, fats: Int) -> Unit,
     onQuickScan: () -> Unit,
+    quickScanEnabled: Boolean,
+    onQuickScanBlocked: () -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf("") }
     var calories by rememberSaveable { mutableStateOf("") }
     var protein by rememberSaveable { mutableStateOf("") }
     var carbs by rememberSaveable { mutableStateOf("") }
     var fats by rememberSaveable { mutableStateOf("") }
+    var activeTabIsAddMeal by rememberSaveable { mutableStateOf(true) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp)
+                .offset(y = 1.5.dp),
+            horizontalArrangement = Arrangement.spacedBy((-6).dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            SketchyFolderTab(
+                text = "ADD MEAL/FOOD",
+                active = activeTabIsAddMeal,
+                onClick = { activeTabIsAddMeal = true },
+                cornerRadius = 12.dp,
+                seed = 501,
+            )
+            Box(
+                modifier = Modifier.alpha(if (quickScanEnabled) 1f else 0.45f),
+            ) {
+                SketchyFolderTab(
+                    text = "QUICK ADD",
+                    active = !activeTabIsAddMeal && quickScanEnabled,
+                    onClick = {
+                        if (!quickScanEnabled) {
+                            onQuickScanBlocked()
+                        } else {
+                            activeTabIsAddMeal = false
+                            onQuickScan()
+                        }
+                    },
+                    cornerRadius = 12.dp,
+                    seed = 507,
+                )
+            }
+        }
 
     Column(
         modifier = Modifier
@@ -293,15 +419,6 @@ private fun AddEntryForm(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionTitle("ADD MEAL / FOOD")
-            SketchyButton(
-                text = "Quick Scan",
-                onClick = onQuickScan
-                //modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(modifier = Modifier.weight(2f)) {
                 FieldLabel("FOOD ITEM NAME")
@@ -370,6 +487,7 @@ private fun AddEntryForm(
                 )
             }
         }
+    }
     }
 }
 
