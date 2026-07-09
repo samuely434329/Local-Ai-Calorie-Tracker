@@ -52,6 +52,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.imagecaltracker.ui.ModelSettingsSheet
 import com.imagecaltracker.ui.sketch.SketchyButton
 import com.imagecaltracker.ui.sketch.SketchyTextField
 import com.imagecaltracker.ui.sketch.sketchyBorder
@@ -74,6 +75,7 @@ fun AssistantDialog(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var tab by remember { mutableStateOf(AssistantTab.Chat) }
+    var showModelSheet by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -95,12 +97,9 @@ fun AssistantDialog(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             HeaderRow(
-                usingFallback = state.usingFallback, 
                 statusMessage = state.statusMessage,
-                downloading = state.downloading,
-                downloadProgress = state.downloadProgress,
-                onDownload = viewModel::downloadModel,
-                onClose = onDismiss
+                onModelSettings = { showModelSheet = true },
+                onClose = onDismiss,
             )
             TabSwitcher(current = tab, onSelect = { tab = it })
             HorizontalDivider(color = SketchColors.GridLine, thickness = 0.6.dp)
@@ -132,6 +131,18 @@ fun AssistantDialog(
             }
         }
     }
+
+    if (showModelSheet) {
+        ModelSettingsSheet(
+            models = state.models,
+            selectedId = state.selectedModel.id,
+            geminiApiKey = state.geminiApiKey,
+            onSelectModel = viewModel::setModel,
+            onDownloadModel = { viewModel.downloadModel(it) },
+            onSaveGeminiKey = viewModel::setGeminiApiKey,
+            onDismiss = { showModelSheet = false },
+        )
+    }
 }
 
 private enum class AssistantTab { Chat, Scan }
@@ -142,12 +153,9 @@ private enum class AssistantTab { Chat, Scan }
 
 @Composable
 private fun HeaderRow(
-    usingFallback: Boolean,
     statusMessage: String,
-    downloading: Boolean,
-    downloadProgress: Float,
-    onDownload: () -> Unit,
-    onClose: () -> Unit
+    onModelSettings: () -> Unit,
+    onClose: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -160,22 +168,19 @@ private fun HeaderRow(
                 style = MaterialTheme.typography.titleLarge,
                 color = SketchColors.InkDark,
             )
-            val progressText = if (downloading) " (${(downloadProgress * 100).toInt()}%)" else ""
             Text(
-                text = "offline · $statusMessage$progressText",
+                text = statusMessage,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (usingFallback) SketchColors.InkMid else SketchColors.InkLight,
+                color = SketchColors.InkMid,
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (usingFallback && !downloading) {
-                SketchyButton(
-                    text = "Download Model",
-                    onClick = onDownload,
-                    seed = 812,
-                    modifier = Modifier.widthIn(min = 120.dp),
-                )
-            }
+            SketchyButton(
+                text = "Model",
+                onClick = onModelSettings,
+                seed = 812,
+                modifier = Modifier.widthIn(min = 88.dp),
+            )
             SketchyButton(
                 text = "Close",
                 onClick = onClose,

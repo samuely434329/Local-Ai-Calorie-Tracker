@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.imagecaltracker.data.ModelSettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,9 +31,18 @@ data class ChatMessage(
     val text: String,
 )
 
+/** Runtime state for one model in the catalog. */
+data class ModelStatus(
+    val spec: ModelSpec,
+    val downloaded: Boolean,
+    val downloading: Boolean,
+    val progress: Float,
+)
+
 /**
- * Combined state for the assistant dialog. Drives both the chat tab and the
- * scanner tab — the dialog itself decides which slice to render.
+ * Combined state for the assistant dialog + model settings sheet. Drives both
+ * the chat tab and the scanner tab — the dialog itself decides which slice to
+ * render.
  */
 data class AssistantUiState(
     val messages: List<ChatMessage> = listOf(
@@ -49,65 +59,91 @@ data class AssistantUiState(
     val estimating: Boolean = false,
     val estimate: MacroEstimate? = null,
     val usingFallback: Boolean = false,
-    val downloading: Boolean = false,
-    val downloadProgress: Float = 0f,
     val statusMessage: String = "Checking...",
-)
+    val selectedModel: ModelSpec = ModelCatalog.default,
+    val models: List<ModelStatus> = ModelCatalog.all.map {
+        ModelStatus(it, downloaded = false, downloading = false, progress = 0f)
+    },
+    val geminiApiKey: String = "",
+) {
+    /** Convenience: is any local model download currently in progress. */
+    val anyDownloading: Boolean get() = models.any { it.downloading }
+}
 
 /**
- * ViewModel for the in-app assistant dialog. Owns one [AssistantEngine] for
- * the lifetime of the dialog, and tracks chat + scanner state as a single
- * [AssistantUiState].
- *
- * The view model only manages state and engine calls; launching the camera
- * and consuming the captured photo are done by the composable via
- * ActivityResult APIs (which need an Activity, not an Application).
+ * ViewModel for the in-app assistant dialog + model settings. Owns one
+ * [AssistantEngine] for the lifetime of the VM and tracks all model / chat
+ * / scanner state as a single [AssistantUiState].
  */
 class AssistantViewModel(application: Application) : AndroidViewModel(application) {
 
     private val engine = AssistantEngine(application.applicationContext)
+    private val settings = ModelSettingsRepository(application.applicationContext)
 
     private val _state = MutableStateFlow(AssistantUiState())
     val state: StateFlow<AssistantUiState> = _state.asStateFlow()
 
     init {
-        // Start engine initialization immediately when the dialog opens.
+        _state.value = _state.value.copy(
+            geminiApiKey = settings.getGeminiApiKey().orEmpty(),
+            models = computeModelStatuses(),
+        )
+        // Observe the selected model id and swap the backend when it changes.
         viewModelScope.launch {
-            try {
-                engine.initialize()
-            } catch (e: Exception) {
-                // AssistantEngine.initialize should catch internally, but we wrap here too
-                // to prevent any bubbling exceptions from crashing the VM scope.
+            settings.selectedModelIdFlow.collect { id ->
+                val spec = ModelCatalog.byId(id)
+                try {
+                    engine.setModel(spec, settings.getGeminiApiKey())
+                    if (spec.family != ModelFamily.Gemini) engine.initialize()
+                } catch (_: Exception) {
+                    // Engine already logs internally.
+                }
+                _state.value = _state.value.copy(
+                    selectedModel = spec,
+                    usingFallback = engine.usingFallback,
+                    statusMessage = engine.statusMessage,
+                    models = computeModelStatuses(_state.value.models),
+                )
             }
-            _state.value = _state.value.copy(
-                usingFallback = engine.usingFallback,
-                statusMessage = engine.statusMessage
-            )
         }
     }
 
-    /** Monotonic id generator for chat messages — purely for LazyColumn keys. */
     private var nextMessageId: Long = 1L
 
-    /**
-     * Build a content Uri for a NEW capture and update state with it. The
-     * returned Uri is what the camera intent should write into.
-     *
-     * The file lives under <external-files>/assistant_photos/, which is
-     * mapped by res/xml/file_paths.xml.
-     */
     fun newPhotoUri(): Uri {
         val ctx = getApplication<Application>().applicationContext
         val dir = File(ctx.getExternalFilesDir(null), "assistant_photos").apply { mkdirs() }
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val file = File(dir, "scan_$stamp.jpg")
-        // Touch the file so the FileProvider Uri resolves for the camera.
         if (!file.exists()) file.createNewFile()
         return FileProvider.getUriForFile(
             ctx,
             "${ctx.packageName}.fileprovider",
             file,
         )
+    }
+
+    // -----------------------------------------------------------------------
+    // Model selection & settings
+    // -----------------------------------------------------------------------
+
+    fun setModel(id: String) {
+        viewModelScope.launch { settings.setSelectedModelId(id) }
+    }
+
+    fun setGeminiApiKey(key: String) {
+        settings.setGeminiApiKey(key)
+        _state.value = _state.value.copy(geminiApiKey = key)
+        // If Gemini is currently active, refresh the backend so the new key takes effect.
+        if (_state.value.selectedModel.family == ModelFamily.Gemini) {
+            viewModelScope.launch {
+                engine.setModel(_state.value.selectedModel, key)
+                _state.value = _state.value.copy(
+                    usingFallback = engine.usingFallback,
+                    statusMessage = engine.statusMessage,
+                )
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -144,11 +180,9 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     // Scanner tab
     // -----------------------------------------------------------------------
 
-    /** Called by the dialog after the camera intent succeeds. */
     fun onPhotoCaptured(uri: Uri) {
         _state.value = _state.value.copy(
             photoUri = uri,
-            // Keep any existing description — common to retake the photo.
             estimate = null,
         )
     }
@@ -157,7 +191,6 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         _state.value = _state.value.copy(description = text)
     }
 
-    /** Discard the current photo + description + estimate. */
     fun resetScan() {
         _state.value = _state.value.copy(
             photoUri = null,
@@ -166,11 +199,6 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
-    /**
-     * Run the engine to estimate macros from the current description. Photo
-     * is required by the UX rule, but the description is what actually drives
-     * the estimate (text-only model).
-     */
     fun estimateMacros() {
         val desc = _state.value.description.trim()
         if (desc.isEmpty() || _state.value.photoUri == null || _state.value.estimating) return
@@ -180,7 +208,6 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
             val result = try {
                 engine.estimateMacros(desc)
             } catch (t: Throwable) {
-                // Build a zeroed placeholder so the user can still edit & save.
                 MacroEstimate(
                     name = desc.take(40),
                     calories = 0,
@@ -199,23 +226,39 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun downloadModel() {
-        if (_state.value.downloading) return
+    // -----------------------------------------------------------------------
+    // Downloads
+    // -----------------------------------------------------------------------
+
+    fun downloadModel(id: String? = null) {
+        val spec = id?.let { ModelCatalog.byId(it) } ?: _state.value.selectedModel
+        if (spec.family == ModelFamily.Gemini || spec.downloadUrl == null || spec.filename == null) return
+        val existing = _state.value.models.firstOrNull { it.spec.id == spec.id }
+        if (existing?.downloading == true) return
 
         _state.value = _state.value.copy(
-            downloading = true,
-            downloadProgress = 0f,
-            statusMessage = "Downloading model...",
+            models = _state.value.models.map {
+                if (it.spec.id == spec.id) it.copy(downloading = true, progress = 0f) else it
+            },
+            statusMessage = if (spec.id == _state.value.selectedModel.id) {
+                "${spec.displayName} · Downloading 0%"
+            } else _state.value.statusMessage,
         )
 
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { performDownload() }
+            val result = withContext(Dispatchers.IO) { performDownload(spec) }
 
             when (result) {
                 is DownloadResult.Success -> {
-                    engine.initialize()
+                    if (spec.id == _state.value.selectedModel.id) {
+                        engine.initialize()
+                    }
                     _state.value = _state.value.copy(
-                        downloading = false,
+                        models = _state.value.models.map {
+                            if (it.spec.id == spec.id) {
+                                it.copy(downloading = false, progress = 1f, downloaded = true)
+                            } else it
+                        },
                         usingFallback = engine.usingFallback,
                         statusMessage = engine.statusMessage,
                     )
@@ -227,9 +270,11 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
                         Toast.makeText(getApplication(), msg, Toast.LENGTH_LONG).show()
                     }
                     _state.value = _state.value.copy(
-                        downloading = false,
-                        downloadProgress = 0f,
-                        statusMessage = msg,
+                        models = _state.value.models.map {
+                            if (it.spec.id == spec.id) it.copy(downloading = false, progress = 0f) else it
+                        },
+                        statusMessage = if (spec.id == _state.value.selectedModel.id) msg
+                        else _state.value.statusMessage,
                     )
                 }
             }
@@ -241,24 +286,16 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         data class Failure(val reason: String) : DownloadResult()
     }
 
-    /**
-     * Download the LiteRT-LM Qwen model from Hugging Face. Saves to
-     * <external-files>/llm/Qwen3-0.6B.litertlm so the engine's auto-discovery
-     * picks it up.
-     *
-     * The HF resolve endpoint returns 302 to a CloudFront URL.
-     * HttpURLConnection follows that automatically when
-     * instanceFollowRedirects is true AND the redirect stays within the
-     * same protocol (https → https here, so it works).
-     */
-    private fun performDownload(): DownloadResult {
+    private fun performDownload(spec: ModelSpec): DownloadResult {
+        val url = spec.downloadUrl ?: return DownloadResult.Failure("No URL for ${spec.displayName}")
+        val filename = spec.filename ?: return DownloadResult.Failure("No filename for ${spec.displayName}")
         val dir = File(getApplication<Application>().getExternalFilesDir(null), "llm").apply { mkdirs() }
-        val targetFile = File(dir, MODEL_FILENAME)
-        val tempFile = File(dir, "$MODEL_FILENAME.part")
+        val targetFile = File(dir, filename)
+        val tempFile = File(dir, "$filename.part")
 
         var connection: java.net.HttpURLConnection? = null
         return try {
-            connection = (URL(MODEL_URL).openConnection() as java.net.HttpURLConnection).apply {
+            connection = (URL(url).openConnection() as java.net.HttpURLConnection).apply {
                 connectTimeout = 30_000
                 readTimeout = 60_000
                 instanceFollowRedirects = true
@@ -285,17 +322,14 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
                             val pct = ((totalRead * 100) / totalSize).toInt()
                             if (pct != lastReportedPercent) {
                                 lastReportedPercent = pct
+                                val progress = pct / 100f
                                 _state.value = _state.value.copy(
-                                    downloadProgress = pct / 100f,
-                                    statusMessage = "Downloading... $pct%",
-                                )
-                            }
-                        } else {
-                            // Unknown size — report MB every ~4 MB.
-                            val mb = (totalRead / 1024 / 1024).toInt()
-                            if (mb % 4 == 0) {
-                                _state.value = _state.value.copy(
-                                    statusMessage = "Downloading... ${mb} MB",
+                                    models = _state.value.models.map {
+                                        if (it.spec.id == spec.id) it.copy(progress = progress) else it
+                                    },
+                                    statusMessage = if (spec.id == _state.value.selectedModel.id) {
+                                        "${spec.displayName} · Downloading $pct%"
+                                    } else _state.value.statusMessage,
                                 )
                             }
                         }
@@ -304,7 +338,6 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
 
-            // Atomic-ish swap so a half-written file never poses as a real model.
             if (targetFile.exists()) targetFile.delete()
             if (!tempFile.renameTo(targetFile)) {
                 return DownloadResult.Failure("Could not move downloaded file into place")
@@ -318,19 +351,32 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    /**
+     * Rebuild the model status list from disk. Preserves any `downloading` /
+     * `progress` state from the previous snapshot so an in-flight download
+     * isn't lost when we refresh.
+     */
+    private fun computeModelStatuses(
+        previous: List<ModelStatus> = emptyList(),
+    ): List<ModelStatus> {
+        val dir = File(getApplication<Application>().getExternalFilesDir(null), "llm")
+        return ModelCatalog.all.map { spec ->
+            val prev = previous.firstOrNull { it.spec.id == spec.id }
+            val downloaded = spec.filename?.let { name ->
+                val f = File(dir, name)
+                f.exists() && f.length() > 0
+            } ?: false
+            ModelStatus(
+                spec = spec,
+                downloaded = downloaded,
+                downloading = prev?.downloading ?: false,
+                progress = prev?.progress ?: 0f,
+            )
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         engine.close()
-    }
-
-    companion object {
-        /**
-         * Default LiteRT-LM Qwen3 0.6B model. The Hugging Face repo also offers
-         * a smaller mixed-int4 variant (qwen3_0_6b_mixed_int4.litertlm) — swap
-         * the URL if you want a smaller / faster model on lower-end phones.
-         */
-        private const val MODEL_URL =
-            "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm"
-        private const val MODEL_FILENAME = "Qwen3-0.6B.litertlm"
     }
 }

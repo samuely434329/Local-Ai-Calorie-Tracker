@@ -123,6 +123,33 @@ fun DrawScope.sketchyRoundedRect(
 private fun min(a: Float, b: Float) = if (a < b) a else b
 
 /**
+ * Sketchy border for a folder-style tab: top edge + top-left/top-right rounded
+ * corners + full left and right sides. The bottom edge is intentionally omitted
+ * so the tab visually merges with whatever container sits below it.
+ */
+fun DrawScope.sketchyTabBorder(
+    rect: Rect,
+    color: Color,
+    strokeWidth: Float,
+    cornerRadius: Float,
+    jitter: Float = 1.2f,
+    passes: Int = 2,
+    seed: Int = 0,
+) {
+    val r = cornerRadius.coerceAtMost(min(rect.width, rect.height) / 2f)
+    val l = rect.left
+    val t = rect.top
+    val rt = rect.right
+    val b = rect.bottom
+
+    sketchyLine(Offset(l + r, t), Offset(rt - r, t), color, strokeWidth, jitter, passes, seed + 1)
+    sketchyLine(Offset(rt, t + r), Offset(rt, b), color, strokeWidth, jitter, passes, seed + 2)
+    sketchyLine(Offset(l, b), Offset(l, t + r), color, strokeWidth, jitter, passes, seed + 3)
+    sketchyArc(Offset(l + r, t + r), r, 180f, 90f, color, strokeWidth, jitter, passes, seed + 5)
+    sketchyArc(Offset(rt - r, t + r), r, 270f, 90f, color, strokeWidth, jitter, passes, seed + 6)
+}
+
+/**
  * Sketchy circular arc. [startAngleDeg] uses standard math convention
  * (0° = +x axis, increases counter-clockwise visually but we adapt).
  *
