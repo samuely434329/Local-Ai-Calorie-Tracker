@@ -1,9 +1,7 @@
 # Calorie Tracker — Hand-Drawn Sketch Edition
 
 A single-screen Jetpack Compose calorie tracker styled to look like a pencil
-sketch on graph paper, inspired by a Gemini-generated mockup.
-
-![reference](../Gemini_Generated_Image_137bke137bke137b%20%281%29.png)
+sketch on graph paper.
 
 ## What it does
 
