@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
  * (matches the reference UI which shows whole-gram amounts).
  *
  * [timestampMillis] is the wall-clock instant the entry was created and
- * is used for both ordering ("Recent Log") and filtering by day.
+ * is used for both ordering ("Today's Log") and filtering by day.
  */
 @Entity(tableName = "food_entries")
 data class FoodEntry(

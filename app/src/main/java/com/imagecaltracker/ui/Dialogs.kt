@@ -3,6 +3,7 @@ package com.imagecaltracker.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,7 +24,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.imagecaltracker.data.DailyGoals
@@ -46,16 +50,22 @@ fun GoalsDialog(
     onDismiss: () -> Unit,
     onSave: (DailyGoals) -> Unit,
 ) {
-    var calories by remember { mutableStateOf(current.calories.toString()) }
     var protein by remember { mutableStateOf(current.proteinG.toString()) }
     var carbs by remember { mutableStateOf(current.carbsG.toString()) }
     var fats by remember { mutableStateOf(current.fatsG.toString()) }
+
+    val calculatedCalories = remember(protein, carbs, fats) {
+        val p = protein.toIntOrNull() ?: 0
+        val c = carbs.toIntOrNull() ?: 0
+        val f = fats.toIntOrNull() ?: 0
+        (p * 4) + (c * 4) + (f * 9)
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         DialogSurface {
             DialogTitle("Daily Goals")
 
-            LabeledNumberField("Calories (kcal)", calories) { calories = it.filter(Char::isDigit).take(5) }
+            CalculatedCalorieDisplay("Calories (kcal)", calculatedCalories)
             LabeledNumberField("Protein (g)", protein) { protein = it.filter(Char::isDigit).take(4) }
             LabeledNumberField("Carbs (g)", carbs) { carbs = it.filter(Char::isDigit).take(4) }
             LabeledNumberField("Fats (g)", fats) { fats = it.filter(Char::isDigit).take(4) }
@@ -72,7 +82,7 @@ fun GoalsDialog(
                     onClick = {
                         onSave(
                             DailyGoals(
-                                calories = calories.toIntOrNull()?.coerceAtLeast(1) ?: current.calories,
+                                calories = calculatedCalories.coerceAtLeast(1),
                                 proteinG = protein.toIntOrNull()?.coerceAtLeast(0) ?: current.proteinG,
                                 carbsG = carbs.toIntOrNull()?.coerceAtLeast(0) ?: current.carbsG,
                                 fatsG = fats.toIntOrNull()?.coerceAtLeast(0) ?: current.fatsG,
@@ -98,10 +108,16 @@ fun EditEntryDialog(
     onDelete: (FoodEntry) -> Unit,
 ) {
     var name by remember { mutableStateOf(entry.name) }
-    var calories by remember { mutableStateOf(entry.calories.toString()) }
     var protein by remember { mutableStateOf(entry.proteinG.toString()) }
     var carbs by remember { mutableStateOf(entry.carbsG.toString()) }
     var fats by remember { mutableStateOf(entry.fatsG.toString()) }
+
+    val calculatedCalories = remember(protein, carbs, fats) {
+        val p = protein.toIntOrNull() ?: 0
+        val c = carbs.toIntOrNull() ?: 0
+        val f = fats.toIntOrNull() ?: 0
+        (p * 4) + (c * 4) + (f * 9)
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         DialogSurface {
@@ -109,7 +125,7 @@ fun EditEntryDialog(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 LabeledTextField("Food name", name) { name = it }
-                LabeledNumberField("Calories (kcal)", calories) { calories = it.filter(Char::isDigit).take(5) }
+                CalculatedCalorieDisplay("Calories (kcal)", calculatedCalories)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LabeledNumberField(
                         label = "Protein (g)",
@@ -147,12 +163,12 @@ fun EditEntryDialog(
                     SketchyButton(text = "Cancel", onClick = onDismiss, seed = 621)
                     SketchyButton(
                         text = "Save",
-                        enabled = name.isNotBlank() && (calories.toIntOrNull() ?: 0) > 0,
+                        enabled = name.isNotBlank() && calculatedCalories > 0,
                         onClick = {
                             onSave(
                                 entry.copy(
                                     name = name.trim(),
-                                    calories = calories.toIntOrNull()?.coerceAtLeast(0) ?: entry.calories,
+                                    calories = calculatedCalories,
                                     proteinG = protein.toIntOrNull()?.coerceAtLeast(0) ?: entry.proteinG,
                                     carbsG = carbs.toIntOrNull()?.coerceAtLeast(0) ?: entry.carbsG,
                                     fatsG = fats.toIntOrNull()?.coerceAtLeast(0) ?: entry.fatsG,
@@ -200,6 +216,101 @@ private fun DialogTitle(text: String) {
 }
 
 @Composable
+fun CalculatorDialog(onDismiss: () -> Unit) {
+    var operand1 by remember { mutableStateOf("") }
+    var operand2 by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf<Double?>(null) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        DialogSurface {
+            DialogTitle("Calculator")
+
+            LabeledNumberField("Value 1", operand1) { operand1 = it.filter { c -> c.isDigit() || c == '.' } }
+            LabeledNumberField("Value 2", operand2) { operand2 = it.filter { c -> c.isDigit() || c == '.' } }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SketchyButton(
+                    text = "+",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        val v1 = operand1.toDoubleOrNull() ?: 0.0
+                        val v2 = operand2.toDoubleOrNull() ?: 0.0
+                        result = v1 + v2
+                    },
+                    seed = 1001
+                )
+                SketchyButton(
+                    text = "×",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        val v1 = operand1.toDoubleOrNull() ?: 0.0
+                        val v2 = operand2.toDoubleOrNull() ?: 0.0
+                        result = v1 * v2
+                    },
+                    seed = 1002
+                )
+                SketchyButton(
+                    text = "÷",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        val v1 = operand1.toDoubleOrNull() ?: 0.0
+                        val v2 = operand2.toDoubleOrNull() ?: 1.0
+                        result = if (v2 != 0.0) v1 / v2 else null
+                    },
+                    seed = 1003
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                if (result != null) {
+                    val displayResult = if (result!! % 1.0 == 0.0) {
+                        result!!.toLong().toString()
+                    } else {
+                        "%.2f".format(result)
+                    }
+                    Text(
+                        text = "Result: $displayResult",
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = SketchColors.InkDark,
+                    )
+                } else if (operand2 == "0") {
+                    Text(
+                        text = "Cannot divide by zero",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Red,
+                    )
+                } else {
+                    Text(
+                        text = "Enter values and pick an operation",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SketchColors.InkLight,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                SketchyButton(text = "Close", onClick = onDismiss, seed = 1004)
+            }
+        }
+    }
+}
+
+@Composable
 private fun LabeledTextField(
     label: String,
     value: String,
@@ -240,6 +351,28 @@ private fun LabeledNumberField(
             onValueChange = onValueChange,
             keyboardType = KeyboardType.Number,
             modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun CalculatedCalorieDisplay(
+    label: String,
+    value: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = SketchColors.InkMid,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+        Text(
+            text = value.toString(),
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color = SketchColors.InkDark.copy(alpha = 0.4f),
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
         )
     }
 }
