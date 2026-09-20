@@ -380,7 +380,7 @@ private fun AddEntryForm(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 12.dp)
+                //.padding(start = 12.dp)
                 .offset(y = 1.5.dp),
             horizontalArrangement = Arrangement.spacedBy((-6).dp),
             verticalAlignment = Alignment.Bottom,
@@ -393,8 +393,12 @@ private fun AddEntryForm(
                 seed = 501,
             )
             Box(
-                modifier = Modifier.alpha(if (quickScanEnabled) 1f else 0.45f),
+                modifier = Modifier
+                    //HARD CODED:
+                    .padding(start = 10.dp)
+                    .alpha(if (quickScanEnabled) 1f else 0.45f),
             ) {
+                // TODO n
                 SketchyFolderTab(
                     text = "QUICK ADD",
                     active = !activeTabIsAddMeal && quickScanEnabled,
