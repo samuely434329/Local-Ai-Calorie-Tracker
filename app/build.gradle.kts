@@ -79,6 +79,9 @@ dependencies {
     // DataStore Preferences (for daily goals)
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    // EncryptedSharedPreferences for the Gemini API key
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
     // LiteRT-LM (replaces MediaPipe GenAI)
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.12.0")
 

@@ -8,7 +8,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -124,6 +123,33 @@ fun DrawScope.sketchyRoundedRect(
 private fun min(a: Float, b: Float) = if (a < b) a else b
 
 /**
+ * Sketchy border for a folder-style tab: top edge + top-left/top-right rounded
+ * corners + full left and right sides. The bottom edge is intentionally omitted
+ * so the tab visually merges with whatever container sits below it.
+ */
+fun DrawScope.sketchyTabBorder(
+    rect: Rect,
+    color: Color,
+    strokeWidth: Float,
+    cornerRadius: Float,
+    jitter: Float = 1.2f,
+    passes: Int = 2,
+    seed: Int = 0,
+) {
+    val r = cornerRadius.coerceAtMost(min(rect.width, rect.height) / 2f)
+    val l = rect.left
+    val t = rect.top
+    val rt = rect.right
+    val b = rect.bottom
+
+    sketchyLine(Offset(l + r, t), Offset(rt - r, t), color, strokeWidth, jitter, passes, seed + 1)
+    sketchyLine(Offset(rt, t + r), Offset(rt, b), color, strokeWidth, jitter, passes, seed + 2)
+    sketchyLine(Offset(l, b), Offset(l, t + r), color, strokeWidth, jitter, passes, seed + 3)
+    sketchyArc(Offset(l + r, t + r), r, 180f, 90f, color, strokeWidth, jitter, passes, seed + 5)
+    sketchyArc(Offset(rt - r, t + r), r, 270f, 90f, color, strokeWidth, jitter, passes, seed + 6)
+}
+
+/**
  * Sketchy circular arc. [startAngleDeg] uses standard math convention
  * (0° = +x axis, increases counter-clockwise visually but we adapt).
  *
@@ -168,77 +194,13 @@ fun DrawScope.sketchyArc(
 // ---------------------------------------------------------------------------
 
 /**
- * Modifier that paints the graph-paper background AND background smudges
- * under content. Drawn with [drawBehind] so it never covers the UI.
+ * Modifier that paints the solid paper background.
  */
-fun Modifier.graphPaperBackground(
-    paper: Color = SketchColors.Paper,
-    grid: Color = SketchColors.GridLine,
-    cellDp: Dp = 14.dp,
-    seed: Int = 7,
+fun Modifier.paperBackground(
+    color: Color = SketchColors.Paper,
 ): Modifier = drawBehind {
-    drawRect(paper)
-    val cell = cellDp.toPx()
-    val rand = sketchRandom(seed)
-
-    // Vertical grid lines with slight color jitter so they don't look perfect.
-    var x = 0f
-    while (x <= size.width) {
-        val a = 0.55f + rand.nextFloat() * 0.25f
-        drawLine(
-            color = grid.copy(alpha = grid.alpha * a),
-            start = Offset(x, 0f),
-            end = Offset(x, size.height),
-            strokeWidth = 0.6f,
-        )
-        x += cell
-    }
-    // Horizontal.
-    var y = 0f
-    while (y <= size.height) {
-        val a = 0.55f + rand.nextFloat() * 0.25f
-        drawLine(
-            color = grid.copy(alpha = grid.alpha * a),
-            start = Offset(0f, y),
-            end = Offset(size.width, y),
-            strokeWidth = 0.6f,
-        )
-        y += cell
-    }
+    drawRect(color)
 }
-/**
- * Modifier that paints procedural pencil "smudges" UNDER content as part of
- * the paper texture (drawBehind). Soft irregular dark blobs made of
- * overlapping translucent ellipses give the paper a worn, used feel.
- *
- * Optimized version with fewer layers to prevent emulator lag.
- */
-//fun Modifier.smudgeBackground(
-//    color: Color = SketchColors.InkSmudge,
-//    count: Int = 8,
-//    seed: Int = 13,
-//): Modifier = drawBehind {
-//    val rand = sketchRandom(seed)
-//    repeat(count) {
-//        val cx = rand.nextFloat() * size.width
-//        val cy = rand.nextFloat() * size.height
-//        val rx = 20f + rand.nextFloat() * 40f
-//        val ry = 10f + rand.nextFloat() * 25f
-//
-//        // Just 2 overlapping ellipses for a soft effect without killing performance.
-//        repeat(2) { l ->
-//            val a = (rand.nextFloat() * 0.05f + 0.03f) * (1f - l * 0.5f)
-//            val ox = (rand.nextFloat() - 0.5f) * 12f
-//            val oy = (rand.nextFloat() - 0.5f) * 12f
-//            drawOval(
-//                color = color.copy(alpha = a),
-//                topLeft = Offset(cx - rx + ox, cy - ry + oy),
-//                size = Size(rx * 2f, ry * 2f),
-//            )
-//        }
-//    }
-//}
-
 /**
  * Modifier that overlays fine pencil grain on top of content — tiny dark
  * dots at very low alpha. Subtle enough to not interfere with readability,
@@ -246,20 +208,20 @@ fun Modifier.graphPaperBackground(
  */
 fun Modifier.grainOverlay(
     color: Color = SketchColors.InkMid,
-    density: Float = 0.0006f,
+    density: Float = 0.0015f,
     seed: Int = 23,
 ): Modifier = drawWithCache {
     onDrawWithContent {
         drawContent()
         val rand = sketchRandom(seed)
-        val total = (size.width * size.height * density).toInt().coerceAtMost(2500)
+        val total = (size.width * size.height * density).toInt().coerceAtMost(5000)
         repeat(total) {
             val x = rand.nextFloat() * size.width
             val y = rand.nextFloat() * size.height
-            val a = 0.04f + rand.nextFloat() * 0.10f
+            val a = 0.06f + rand.nextFloat() * 0.12f
             drawCircle(
                 color = color.copy(alpha = a),
-                radius = 0.5f + rand.nextFloat() * 0.6f,
+                radius = 0.5f + rand.nextFloat() * 0.7f,
                 center = Offset(x, y),
             )
         }
@@ -290,10 +252,10 @@ fun Modifier.sketchyBorder(
 }
 
 /**
- * Container that stacks paper background + smudges + grain in the right order.
+ * Container that stacks paper background + grain in the right order.
  * Use this as the root of any screen for a consistent "real paper" feel.
  *
- * Drawing order: paper grid → smudges → content → grain.
+ * Drawing order: paper background → content → grain.
  */
 @Composable
 fun PaperBackground(
@@ -303,8 +265,7 @@ fun PaperBackground(
 ) {
     Box(
         modifier = modifier
-            .graphPaperBackground(seed = seed)
-            //.smudgeBackground(seed = seed + 1)
+            .paperBackground()
             .grainOverlay(seed = seed + 2),
         content = content,
     )

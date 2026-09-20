@@ -1,6 +1,7 @@
 package com.imagecaltracker.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.imagecaltracker.data.CalorieDatabase
@@ -9,12 +10,14 @@ import com.imagecaltracker.data.DaySummary
 import com.imagecaltracker.data.FoodEntry
 import com.imagecaltracker.data.FoodRepository
 import com.imagecaltracker.data.GoalsRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -37,25 +40,38 @@ data class MainUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val foodRepo = FoodRepository(CalorieDatabase.get(application).foodEntryDao())
+    private val foodRepo: FoodRepository
     private val goalsRepo = GoalsRepository(application)
+
+    init {
+        Log.d("MainViewModel", "Initializing Database...")
+        val dao = CalorieDatabase.get(application).foodEntryDao()
+        foodRepo = FoodRepository(dao)
+        Log.d("MainViewModel", "Database Initialized.")
+    }
 
     /** Currently displayed day. Defaults to today; the user can switch to a past day from the history dialog. */
     private val dateFlow = MutableStateFlow(LocalDate.now())
 
-    private val entriesFlow = dateFlow.flatMapLatest { foodRepo.observeEntriesForDate(it) }
+    private val entriesFlow = dateFlow.flatMapLatest { date ->
+        Log.d("MainViewModel", "Observing entries for date: $date")
+        foodRepo.observeEntriesForDate(date)
+    }
 
     val uiState: StateFlow<MainUiState> = combine(
         dateFlow,
         goalsRepo.goalsFlow,
         entriesFlow,
     ) { date, goals, entries ->
+        Log.d("MainViewModel", "UI State updated for date: $date, entries count: ${entries.size}")
         MainUiState(date = date, goals = goals, entries = entries)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000L),
-        initialValue = MainUiState(LocalDate.now(), DailyGoals.Default, emptyList()),
-    )
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000L),
+            initialValue = MainUiState(LocalDate.now(), DailyGoals.Default, emptyList()),
+        )
 
     /** Per-day summaries of past logged days (excluding today), newest first. */
     val historyFlow: StateFlow<List<DaySummary>> = foodRepo.observeHistory(LocalDate.now())

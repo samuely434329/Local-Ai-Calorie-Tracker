@@ -11,9 +11,9 @@ import androidx.compose.ui.graphics.Color
  */
 object SketchColors {
     // Paper / surfaces.
-    val Paper = Color(0xFFF2EFE6)          // cream paper
-    val PaperShadow = Color(0xFFE6E1D2)    // slightly darker for grid
-    val GridLine = Color(0xFFCFC8B4)       // graph-paper line
+    val Paper = Color(0xFFFDFDFD)           // white paper#fdfdfd)          // white paper
+    val PaperShadow = Color(0xFFF5F5F5)    // light grey for contrast
+    val GridLine = Color(0xFFD1F1F5)       // light blue graph-paper line
 
     // Ink (pencil).
     val InkDark = Color(0xFF2E2C28)        // dark graphite — main strokes/text
