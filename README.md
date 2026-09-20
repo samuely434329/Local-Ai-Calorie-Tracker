@@ -1,7 +1,6 @@
 # Calorie Tracker — Hand-Drawn Sketch Edition
 
-A single-screen Jetpack Compose calorie tracker styled to look like a pencil
-sketch on graph paper.
+An actual hand-sketched single-screen Jetpack Compose calorie tracker.
 
 ## What it does
 
