@@ -129,12 +129,12 @@ fun SketchyMacroBar(
             contentAlignment = Alignment.CenterStart
         ) {
             // 1. The full sketched bar image (Back)
-            Image(
-                painter = painterResource(R.drawable.sketched_bar),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.FillBounds
-            )
+//            Image(
+//                //painter = painterResource(R.drawable.sketched_bar),
+//                contentDescription = null,
+//                modifier = Modifier.fillMaxSize(),
+//                contentScale = ContentScale.FillBounds
+//            )
 
             // 2. The Masking layer (Front)
             // Gradually reveals the image from left to right.
